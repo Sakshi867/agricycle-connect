@@ -26,7 +26,7 @@ interface Listing {
 interface ListingsContextType {
   farmerListings: Listing[];
   buyerListings: Listing[];
-  addListing: (listing: Omit<Listing, "id" | "date" | "status" | "inquiries" | "farmerId" | "farmerName">) => Promise<void>;
+  addListing: (listing: Omit<Listing, "id" | "date" | "status" | "inquiries" | "farmerId" | "farmerName">) => Promise<string>;
   updateListing: (id: string, updates: Partial<Listing>) => Promise<void>;
   toggleBookmark: (id: string) => void;
   getListingsByFarmer: (farmerId: string) => Listing[];
@@ -39,46 +39,65 @@ export const ListingsProvider = ({ children }: { children: ReactNode }) => {
   const [farmerListings, setFarmerListings] = useState<Listing[]>([]);
   const [buyerListings, setBuyerListings] = useState<Listing[]>([]);
 
-  // Load listings based on user role
+  // Load listings based on user role with proper error handling
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser || !currentUser.role) return;
 
-    let unsubscribe: () => void;
+    let unsubscribe: (() => void) | null = null;
 
-    if (currentUser.role === 'farmer') {
-      // Subscribe to farmer's own listings
-      const q = query(
-        collection(db, 'listings'),
-        where('farmerId', '==', currentUser.uid),
-        orderBy('date', 'desc')
-      );
+    try {
+      if (currentUser.role === 'farmer') {
+        // Subscribe to farmer's own listings
+        const q = query(
+          collection(db, 'listings'),
+          where('farmerId', '==', currentUser.uid),
+          orderBy('date', 'desc')
+        );
 
-      unsubscribe = onSnapshot(q, (snapshot) => {
-        const listings = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        })) as Listing[];
-        setFarmerListings(listings);
-      });
-    } else if (currentUser.role === 'buyer') {
-      // Buyers see all active listings
-      const q = query(
-        collection(db, 'listings'),
-        where('status', '==', 'active'),
-        orderBy('date', 'desc')
-      );
+        unsubscribe = onSnapshot(q, 
+          (snapshot) => {
+            const listings = snapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data()
+            })) as Listing[];
+            console.log('Farmer listings updated:', listings.length);
+            setFarmerListings(listings);
+          },
+          (error) => {
+            console.error('Error fetching farmer listings:', error);
+          }
+        );
+      } else if (currentUser.role === 'buyer') {
+        // Buyers see all active listings
+        const q = query(
+          collection(db, 'listings'),
+          where('status', '==', 'active'),
+          orderBy('date', 'desc')
+        );
 
-      unsubscribe = onSnapshot(q, (snapshot) => {
-        const listings = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        })) as Listing[];
-        setBuyerListings(listings);
-      });
+        unsubscribe = onSnapshot(q, 
+          (snapshot) => {
+            const listings = snapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data()
+            })) as Listing[];
+            console.log('Buyer listings updated:', listings.length);
+            setBuyerListings(listings);
+          },
+          (error) => {
+            console.error('Error fetching buyer listings:', error);
+          }
+        );
+      }
+    } catch (error) {
+      console.error('Error setting up listings subscription:', error);
     }
 
     return () => {
-      if (unsubscribe) unsubscribe();
+      if (unsubscribe) {
+        unsubscribe();
+        unsubscribe = null;
+      }
     };
   }, [currentUser]);
 
@@ -90,16 +109,21 @@ export const ListingsProvider = ({ children }: { children: ReactNode }) => {
     const newListing = {
       ...listing,
       farmerId: currentUser.uid,
-      farmerName: currentUser.displayName || currentUser.email || 'Anonymous',
+      farmerName: currentUser.displayName || currentUser.email || 'Anonymous Farmer',
       date: new Date().toISOString().split('T')[0],
       status: "active" as const,
       inquiries: 0,
     };
 
     try {
+      console.log('Adding new listing:', newListing);
       const docRef = await addDoc(collection(db, 'listings'), newListing);
-      // The onSnapshot will automatically update the state
       console.log('Listing added with ID:', docRef.id);
+      
+      // Give Firestore time to sync before returning
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      return docRef.id;
     } catch (error) {
       console.error('Error adding listing:', error);
       throw error;

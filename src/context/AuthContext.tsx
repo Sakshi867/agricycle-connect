@@ -6,6 +6,8 @@ import {
 } from 'firebase/auth';
 import { auth } from '@/services/firebase/config';
 import { authService, AppUser, UserRole } from '@/services/firebase/authService';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/services/firebase/config';
 
 interface AuthContextType {
   currentUser: AppUser | null;
@@ -31,30 +33,105 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
   const [role, setRole] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState(true);
+  const [unsubscribe, setUnsubscribe] = useState<(() => void) | null>(null);
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setCurrentUser(user as AppUser);
-
-      // Get role from localStorage or determine from other factors
-      if (user) {
-        const userRole = authService.getCurrentUserRole();
-        setRole(userRole);
+  // Background function to fetch role from Firestore with offline support
+  const fetchRoleFromFirestore = async (userId: string): Promise<void> => {
+    try {
+      // Only fetch if role is not already set from localStorage
+      const localRole = authService.getCurrentUserRole();
+      if (localRole) {
+        setRole(localRole);
+        return;
       }
 
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        const userRole = userData.role as UserRole;
+        if (userRole) {
+          setRole(userRole);
+          authService.setCurrentUserRole(userRole);
+        }
+      }
+    } catch (error: any) {
+      // Handle offline scenario gracefully
+      if (error.code === 'unavailable' || error.message?.includes('offline')) {
+        console.warn('Offline mode: Using cached role data');
+        // Try to get role from localStorage as fallback
+        const cachedRole = authService.getCurrentUserRole();
+        if (cachedRole) {
+          setRole(cachedRole);
+        }
+      } else {
+        console.error('Error fetching user role from Firestore:', error);
+      }
+    }
+  };
+
+  // Cleanup function for auth listener
+  const cleanupAuthListener = () => {
+    if (unsubscribe) {
+      unsubscribe();
+      setUnsubscribe(null);
+    }
+  };
+
+  useEffect(() => {
+    // Setup auth state listener
+    const unsubscribeFn = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user as AppUser);
+
+      if (user) {
+        // Get role from localStorage first (instant access - critical for routing)
+        const userRole = authService.getCurrentUserRole();
+        if (userRole) {
+          setRole(userRole);
+        }
+        
+        // Background sync with Firestore (non-blocking)
+        fetchRoleFromFirestore(user.uid);
+      } else {
+        // Clear role if user is not authenticated
+        setRole(null);
+        authService.clearUserRole();
+      }
+
+      // Set loading to false after auth state and role are determined
       setLoading(false);
     });
 
-    // Cleanup subscription on unmount
-    return () => unsubscribe();
+    setUnsubscribe(() => unsubscribeFn);
+
+    // Cleanup on unmount
+    return cleanupAuthListener;
   }, []);
 
-  // Sign in function
+  // Sign in function - ensure immediate role setting
   const signIn = async (email: string, password: string) => {
     setLoading(true);
     try {
       const user = await authService.signIn(email, password);
       setCurrentUser(user);
+      
+      // Set role from the user object immediately (critical for routing)
+      if (user.role) {
+        setRole(user.role);
+        authService.setCurrentUserRole(user.role);
+      } else {
+        // Fallback: try to get role from localStorage
+        const localRole = authService.getCurrentUserRole();
+        if (localRole) {
+          setRole(localRole);
+        }
+      }
+      
+      // Background sync - don't block UI
+      if (user.uid) {
+        fetchRoleFromFirestore(user.uid);
+      }
+      
+      // Only set loading to false after role is confirmed
       setLoading(false);
     } catch (error) {
       setLoading(false);
@@ -105,13 +182,21 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     await sendEmailVerification(auth.currentUser);
   };
 
-  // Sign in with Google
+  // Sign in with Google - ensure immediate role setting
   const signInWithGoogle = async (role: UserRole) => {
     setLoading(true);
     try {
       const user = await authService.signInWithGoogleAndRole(role);
       setCurrentUser(user);
       setRole(role);
+      authService.setCurrentUserRole(role);
+      
+      // Background sync - don't block UI
+      if (user.uid) {
+        fetchRoleFromFirestore(user.uid);
+      }
+      
+      // Only set loading to false after role is confirmed
       setLoading(false);
     } catch (error) {
       setLoading(false);

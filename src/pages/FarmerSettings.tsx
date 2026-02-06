@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, User, MapPin, Phone, Mail, Globe, Languages, Shield, Bell, CreditCard, HelpCircle, LogOut, Check, AlertCircle } from "lucide-react";
+import { ArrowLeft, User, MapPin, Phone, Mail, Globe, Languages, Shield, Bell, CreditCard, HelpCircle, LogOut, Check, AlertCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import FarmerBottomNav from "@/components/FarmerBottomNav";
 import { Switch } from "@/components/ui/switch";
@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
+import { messagingService } from "@/services/firebase/messagingService";
+import { updateProfile } from "firebase/auth";
 
 interface NotificationsState {
   listingUpdates: boolean;
@@ -52,13 +54,44 @@ const FarmerSettings = () => {
   });
 
   useEffect(() => {
-    if (currentUser) {
-      setProfileData(prev => ({
-        ...prev,
-        name: currentUser.displayName || prev.name,
-        email: currentUser.email || prev.email
-      }));
-    }
+    const fetchUserData = async () => {
+      if (currentUser?.uid) {
+        try {
+          const userData = await messagingService.getUserProfile(currentUser.uid);
+          if (userData) {
+            setProfileData(prev => ({
+              ...prev,
+              name: userData.displayName || currentUser.displayName || prev.name,
+              email: userData.email || currentUser.email || prev.email,
+              phone: userData.phoneNumber || prev.phone,
+              location: userData.location || prev.location,
+              farmSize: userData.farmSize || prev.farmSize,
+              crops: userData.crops || prev.crops
+            }));
+          } else {
+            // Fallback to current user data
+            setProfileData(prev => ({
+              ...prev,
+              name: currentUser.displayName || prev.name,
+              email: currentUser.email || prev.email
+            }));
+          }
+        } catch (error: any) {
+          console.error('Error fetching user data:', error);
+          // Don't show error for offline scenarios
+          if (!error.message?.includes('offline') && error.code !== 'unavailable') {
+            // Fallback to current user data
+            setProfileData(prev => ({
+              ...prev,
+              name: currentUser.displayName || prev.name,
+              email: currentUser.email || prev.email
+            }));
+          }
+        }
+      }
+    };
+
+    fetchUserData();
   }, [currentUser]);
 
   const [saving, setSaving] = useState<boolean>(false);
@@ -91,27 +124,29 @@ const FarmerSettings = () => {
     setSaving(true);
 
     try {
-      // Simulate API call to save profile
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      if (currentUser?.uid) {
+        // Save to Firestore
+        await messagingService.updateUserProfile(currentUser.uid, {
+          displayName: profileData.name,
+          phoneNumber: profileData.phone,
+          email: profileData.email,
+          location: profileData.location,
+          farmSize: profileData.farmSize,
+          crops: profileData.crops
+        });
 
-      // In a real application, you would call an API here
-      // const response = await fetch('/api/user/profile', {
-      //   method: 'PUT',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(profileData)
-      // });
+        // Update Firebase Auth display name
+        if (currentUser.displayName !== profileData.name) {
+          await updateProfile(currentUser, { displayName: profileData.name });
+        }
+      }
 
-      // if (response.ok) {
       toast({
         title: "Success!",
         description: "Your profile has been updated successfully.",
       });
-      // You might want to update the user context here
-      // setUserContext(prev => ({...prev, ...profileData}));
-      // } else {
-      //   throw new Error('Failed to update profile');
-      // }
     } catch (error) {
+      console.error('Error saving profile:', error);
       toast({
         title: "Error",
         description: "Failed to update profile. Please try again.",

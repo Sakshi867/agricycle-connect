@@ -1,5 +1,21 @@
 import { Link } from "react-router-dom";
-import { ArrowLeft, User, MapPin, Phone, Mail, Edit, Settings, Shield, HelpCircle, LogOut, Camera, Upload, Check, X } from "lucide-react";
+import { 
+  ArrowLeft, 
+  User, 
+  MapPin, 
+  Phone, 
+  Mail, 
+  Edit, 
+  Settings, 
+  Shield, 
+  HelpCircle, 
+  LogOut, 
+  Camera, 
+  Upload, 
+  Check, 
+  X,
+  Loader2
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import FarmerBottomNav from "@/components/FarmerBottomNav";
 import { useAuth } from "@/context/AuthContext";
@@ -8,48 +24,93 @@ import { useEffect, useState, useRef } from "react";
 import { toast } from "@/hooks/use-toast";
 import { updateProfile } from "firebase/auth";
 
-const FarmerProfile = () => {
+interface FarmerProfileData {
+  name: string;
+  phone: string;
+  email: string;
+  location: string;
+  farmSize: string;
+  crops: string[];
+  photoURL: string;
+  memberSince: string;
+  totalListings: number;
+  totalEarnings: string;
+}
+
+const ProductionFarmerProfile = () => {
   const { currentUser, signOut } = useAuth();
-  const [farmerData, setFarmerData] = useState({
+  const [profileData, setProfileData] = useState<FarmerProfileData>({
     name: currentUser?.displayName || "Farmer",
     phone: "+91 98765 43210",
     email: currentUser?.email || "No email",
     location: "Pune, Maharashtra",
     farmSize: "15 acres",
     crops: ["Rice", "Wheat", "Sugarcane"],
-    memberSince: currentUser?.metadata.creationTime ? new Date(currentUser.metadata.creationTime).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : "Jan 2024",
+    photoURL: currentUser?.photoURL || "",
+    memberSince: currentUser?.metadata.creationTime 
+      ? new Date(currentUser.metadata.creationTime).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) 
+      : "Jan 2024",
     totalListings: 12,
-    totalEarnings: "₹45,200",
-    photoURL: currentUser?.photoURL || ""
+    totalEarnings: "₹45,200"
   });
+  
   const [isEditing, setIsEditing] = useState(false);
-  const [tempData, setTempData] = useState(farmerData);
+  const [tempData, setTempData] = useState<FarmerProfileData>(profileData);
   const [uploading, setUploading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Load user data from Firestore on mount
   useEffect(() => {
-    const fetchUserData = async () => {
+    const loadUserData = async () => {
       if (currentUser?.uid) {
         try {
           const userData = await messagingService.getUserProfile(currentUser.uid);
           if (userData) {
-            setFarmerData(prev => ({
-              ...prev,
-              name: userData.displayName || prev.name,
-              phone: userData.phoneNumber || prev.phone,
-              location: userData.location || prev.location,
-              farmSize: userData.farmSize || prev.farmSize,
-              crops: userData.crops || prev.crops
-            }));
+            const updatedData: FarmerProfileData = {
+              name: userData.displayName || profileData.name,
+              phone: userData.phoneNumber || profileData.phone,
+              email: userData.email || profileData.email,
+              location: userData.location || profileData.location,
+              farmSize: userData.farmSize || profileData.farmSize,
+              crops: userData.crops || profileData.crops,
+              photoURL: userData.photoURL || currentUser.photoURL || profileData.photoURL,
+              memberSince: profileData.memberSince,
+              totalListings: profileData.totalListings,
+              totalEarnings: profileData.totalEarnings
+            };
+            setProfileData(updatedData);
+            setTempData(updatedData);
+          } else {
+            // Offline mode or no data found - use current user data as fallback
+            const fallbackData: FarmerProfileData = {
+              ...profileData,
+              name: currentUser.displayName || profileData.name,
+              email: currentUser.email || profileData.email,
+              photoURL: currentUser.photoURL || profileData.photoURL
+            };
+            setProfileData(fallbackData);
+            setTempData(fallbackData);
           }
-        } catch (error) {
-          console.error('Error fetching user data:', error);
-          // Don't show error to user, just use default/fallback data
+        } catch (error: any) {
+          console.error('Error loading user data:', error);
+          // Don't show error toast for offline scenarios
+          if (!error.message?.includes('offline') && error.code !== 'unavailable') {
+            toast({
+              title: "Error",
+              description: "Failed to load profile data",
+              variant: "destructive"
+            });
+          }
+        } finally {
+          setLoading(false);
         }
+      } else {
+        setLoading(false);
       }
     };
 
-    fetchUserData();
+    loadUserData();
   }, [currentUser]);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -80,8 +141,11 @@ const FarmerProfile = () => {
     try {
       if (currentUser?.uid) {
         const photoURL = await messagingService.uploadUserPhoto(currentUser.uid, file);
-        setFarmerData(prev => ({ ...prev, photoURL }));
-        setTempData(prev => ({ ...prev, photoURL }));
+        
+        // Update local state
+        const updatedData = { ...profileData, photoURL };
+        setProfileData(updatedData);
+        setTempData(updatedData);
         
         // Update Firebase Auth photoURL
         await updateProfile(currentUser, { photoURL });
@@ -105,7 +169,7 @@ const FarmerProfile = () => {
 
   const handleEditClick = () => {
     setIsEditing(true);
-    setTempData(farmerData);
+    setTempData(profileData);
   };
 
   const handleSave = async () => {
@@ -118,7 +182,8 @@ const FarmerProfile = () => {
           email: tempData.email,
           location: tempData.location,
           farmSize: tempData.farmSize,
-          crops: tempData.crops
+          crops: tempData.crops,
+          photoURL: tempData.photoURL
         });
 
         // Update Firebase Auth
@@ -126,7 +191,7 @@ const FarmerProfile = () => {
           await updateProfile(currentUser, { displayName: tempData.name });
         }
         
-        setFarmerData(tempData);
+        setProfileData(tempData);
         setIsEditing(false);
         
         toast({
@@ -146,7 +211,15 @@ const FarmerProfile = () => {
 
   const handleCancel = () => {
     setIsEditing(false);
-    setTempData(farmerData);
+    setTempData(profileData);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
   };
 
   const menuItems = [
@@ -156,13 +229,16 @@ const FarmerProfile = () => {
     { icon: LogOut, label: "Logout", path: "/auth", action: "logout" },
   ];
 
-  const handleLogout = async () => {
-    try {
-      await signOut();
-    } catch (error) {
-      console.error("Logout failed:", error);
-    }
-  };
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading profile...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -189,9 +265,9 @@ const FarmerProfile = () => {
             <div className="flex items-end gap-4 mb-4">
               <div className="relative">
                 <div className="w-20 h-20 rounded-2xl bg-primary-foreground/20 flex items-center justify-center overflow-hidden">
-                  {farmerData.photoURL ? (
+                  {profileData.photoURL ? (
                     <img 
-                      src={farmerData.photoURL} 
+                      src={profileData.photoURL} 
                       alt="Profile" 
                       className="w-full h-full object-cover"
                     />
@@ -219,14 +295,16 @@ const FarmerProfile = () => {
                 />
               </div>
               <div className="flex-1">
-                <h2 className="text-xl font-bold">{isEditing ? (
-                  <input
-                    value={tempData.name}
-                    onChange={(e) => setTempData({...tempData, name: e.target.value})}
-                    className="bg-transparent border-b border-primary-foreground/30 focus:outline-none focus:border-primary-foreground text-primary-foreground"
-                    placeholder="Enter name"
-                  />
-                ) : farmerData.name}</h2>
+                <h2 className="text-xl font-bold">
+                  {isEditing ? (
+                    <input
+                      value={tempData.name}
+                      onChange={(e) => setTempData({...tempData, name: e.target.value})}
+                      className="bg-transparent border-b border-primary-foreground/30 focus:outline-none focus:border-primary-foreground text-primary-foreground w-full"
+                      placeholder="Enter name"
+                    />
+                  ) : profileData.name}
+                </h2>
                 <p className="text-primary-foreground/70">Farmer</p>
               </div>
               {isEditing ? (
@@ -263,11 +341,11 @@ const FarmerProfile = () => {
             <div className="grid grid-cols-2 gap-4 pt-4 border-t border-primary-foreground/20">
               <div>
                 <p className="text-xs text-primary-foreground/70 uppercase tracking-wide">Member Since</p>
-                <p className="font-semibold">{farmerData.memberSince}</p>
+                <p className="font-semibold">{profileData.memberSince}</p>
               </div>
               <div>
                 <p className="text-xs text-primary-foreground/70 uppercase tracking-wide">Total Listings</p>
-                <p className="font-semibold">{farmerData.totalListings}</p>
+                <p className="font-semibold">{profileData.totalListings}</p>
               </div>
             </div>
           </div>
@@ -279,11 +357,20 @@ const FarmerProfile = () => {
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-card rounded-2xl p-4 shadow-card border border-border">
             <p className="text-sm text-muted-foreground mb-1">Total Earnings</p>
-            <p className="text-2xl font-bold text-foreground">{farmerData.totalEarnings}</p>
+            <p className="text-2xl font-bold text-foreground">{profileData.totalEarnings}</p>
           </div>
           <div className="bg-card rounded-2xl p-4 shadow-card border border-border">
             <p className="text-sm text-muted-foreground mb-1">Farm Size</p>
-            <p className="text-2xl font-bold text-foreground">{farmerData.farmSize}</p>
+            <p className="text-2xl font-bold text-foreground">
+              {isEditing ? (
+                <input
+                  value={tempData.farmSize}
+                  onChange={(e) => setTempData({...tempData, farmSize: e.target.value})}
+                  className="bg-transparent border-b border-foreground/30 focus:outline-none focus:border-foreground w-full"
+                  placeholder="Farm size"
+                />
+              ) : profileData.farmSize}
+            </p>
           </div>
         </div>
       </div>
@@ -296,9 +383,18 @@ const FarmerProfile = () => {
             <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center">
               <Phone className="w-5 h-5 text-muted-foreground" />
             </div>
-            <div>
+            <div className="flex-1">
               <p className="text-sm text-muted-foreground">Phone</p>
-              <p className="font-medium text-foreground">{farmerData.phone}</p>
+              <p className="font-medium text-foreground">
+                {isEditing ? (
+                  <input
+                    value={tempData.phone}
+                    onChange={(e) => setTempData({...tempData, phone: e.target.value})}
+                    className="bg-transparent border-b border-foreground/30 focus:outline-none focus:border-foreground w-full"
+                    placeholder="Phone number"
+                  />
+                ) : profileData.phone}
+              </p>
             </div>
           </div>
 
@@ -306,9 +402,18 @@ const FarmerProfile = () => {
             <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center">
               <Mail className="w-5 h-5 text-muted-foreground" />
             </div>
-            <div>
+            <div className="flex-1">
               <p className="text-sm text-muted-foreground">Email</p>
-              <p className="font-medium text-foreground">{farmerData.email}</p>
+              <p className="font-medium text-foreground">
+                {isEditing ? (
+                  <input
+                    value={tempData.email}
+                    onChange={(e) => setTempData({...tempData, email: e.target.value})}
+                    className="bg-transparent border-b border-foreground/30 focus:outline-none focus:border-foreground w-full"
+                    placeholder="Email address"
+                  />
+                ) : profileData.email}
+              </p>
             </div>
           </div>
 
@@ -316,9 +421,18 @@ const FarmerProfile = () => {
             <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center">
               <MapPin className="w-5 h-5 text-muted-foreground" />
             </div>
-            <div>
+            <div className="flex-1">
               <p className="text-sm text-muted-foreground">Location</p>
-              <p className="font-medium text-foreground">{farmerData.location}</p>
+              <p className="font-medium text-foreground">
+                {isEditing ? (
+                  <input
+                    value={tempData.location}
+                    onChange={(e) => setTempData({...tempData, location: e.target.value})}
+                    className="bg-transparent border-b border-foreground/30 focus:outline-none focus:border-foreground w-full"
+                    placeholder="Location"
+                  />
+                ) : profileData.location}
+              </p>
             </div>
           </div>
         </div>
@@ -329,14 +443,23 @@ const FarmerProfile = () => {
         <h3 className="text-lg font-semibold text-foreground mb-4">Crops Grown</h3>
         <div className="bg-card rounded-2xl p-4 shadow-card border border-border">
           <div className="flex flex-wrap gap-2">
-            {farmerData.crops.map((crop, index) => (
-              <span
-                key={index}
-                className="px-3 py-1.5 bg-primary/10 text-primary rounded-full text-sm font-medium"
-              >
-                {crop}
-              </span>
-            ))}
+            {isEditing ? (
+              <input
+                value={tempData.crops.join(', ')}
+                onChange={(e) => setTempData({...tempData, crops: e.target.value.split(',').map(crop => crop.trim())})}
+                className="bg-transparent border-b border-foreground/30 focus:outline-none focus:border-foreground w-full p-2"
+                placeholder="Enter crops separated by commas"
+              />
+            ) : (
+              profileData.crops.map((crop, index) => (
+                <span
+                  key={index}
+                  className="px-3 py-1.5 bg-primary/10 text-primary rounded-full text-sm font-medium"
+                >
+                  {crop}
+                </span>
+              ))
+            )}
           </div>
         </div>
       </div>
@@ -349,8 +472,7 @@ const FarmerProfile = () => {
             <div
               key={item.label}
               onClick={item.action === "logout" ? handleLogout : undefined}
-              className={`flex items-center gap-4 p-4 hover:bg-muted/50 cursor-pointer transition-colors ${index !== menuItems.length - 1 ? "border-b border-border" : ""
-                }`}
+              className={`flex items-center gap-4 p-4 hover:bg-muted/50 cursor-pointer transition-colors ${index !== menuItems.length - 1 ? "border-b border-border" : ""}`}
             >
               {item.action !== "logout" ? (
                 <Link to={item.path} className="flex items-center gap-4 w-full">
@@ -381,4 +503,4 @@ const FarmerProfile = () => {
   );
 };
 
-export default FarmerProfile;
+export default ProductionFarmerProfile;

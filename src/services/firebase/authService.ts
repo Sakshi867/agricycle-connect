@@ -9,6 +9,8 @@ import {
   signInWithPopup
 } from 'firebase/auth';
 import { auth } from './config';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { db } from './config';
 
 // Define user role type
 export type UserRole = 'farmer' | 'buyer';
@@ -41,8 +43,16 @@ class AuthService {
         displayName: displayName
       });
 
-      // Store role in user's metadata (we'll use Firestore for persistent role storage)
-      // For now, we'll handle role assignment in the app
+      // Store role in Firestore for persistent role storage
+      await setDoc(doc(db, 'users', userCredential.user.uid), {
+        role: role,
+        email: userCredential.user.email,
+        displayName: displayName,
+        createdAt: new Date()
+      });
+      
+      // Store role in localStorage as well for immediate access
+      this.setCurrentUserRole(role);
       
       return {
         ...userCredential.user,
@@ -57,7 +67,36 @@ class AuthService {
   async signIn(email: string, password: string): Promise<AppUser> {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      return userCredential.user as AppUser;
+      
+      // Get the user's role from localStorage first (faster)
+      let userRole: UserRole | null = this.getCurrentUserRole();
+      
+      // If not in localStorage, try to get from Firestore
+      if (!userRole) {
+        try {
+          const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            userRole = userData.role as UserRole;
+            
+            // Store role in localStorage for immediate access
+            if (userRole) {
+              this.setCurrentUserRole(userRole);
+            }
+          }
+        } catch (error: any) {
+          // Handle offline scenario - don't block login
+          if (error.code !== 'unavailable' && !error.message?.includes('offline')) {
+            console.error('Error fetching user role from Firestore:', error);
+          }
+        }
+      }
+      
+      // Return the user with their role
+      return {
+        ...userCredential.user,
+        role: userRole
+      } as AppUser;
     } catch (error: any) {
       throw new Error(error.message || 'Failed to sign in');
     }
@@ -86,6 +125,25 @@ class AuthService {
     try {
       const provider = new OAuthProvider('google.com');
       const result = await signInWithPopup(auth, provider);
+      
+      // Store role in Firestore for persistent role storage
+      try {
+        const userRef = doc(db, 'users', result.user.uid);
+        const userSnap = await getDoc(userRef);
+        
+        if (!userSnap.exists()) {
+          // Only create user document if it doesn't exist
+          await setDoc(userRef, {
+            role: role,
+            email: result.user.email,
+            displayName: result.user.displayName,
+            createdAt: new Date(),
+            provider: 'google'
+          });
+        }
+      } catch (error) {
+        console.error('Error storing user role in Firestore:', error);
+      }
       
       // Store role in localStorage
       this.setCurrentUserRole(role);
@@ -122,11 +180,17 @@ class AuthService {
     return auth.currentUser as AppUser | null;
   }
 
-  // Get current user role (would typically be stored in Firestore)
+  // Get current user role
   getCurrentUserRole(): UserRole | null {
-    // In a real implementation, you would fetch the role from Firestore or user claims
-    // For now, we'll infer it from the navigation state or localStorage
-    return localStorage.getItem('userRole') as UserRole | null;
+    // First try to get from localStorage
+    const roleFromStorage = localStorage.getItem('userRole') as UserRole | null;
+    if (roleFromStorage) {
+      return roleFromStorage;
+    }
+    
+    // If not in storage, we could fetch from Firestore, but for now return null
+    // The role should have been fetched during sign-in
+    return null;
   }
 
   // Set user role (stored locally for now)

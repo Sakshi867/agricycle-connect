@@ -34,27 +34,39 @@ const ListingDetails = () => {
   const handlePublish = async () => {
     setIsPublishing(true);
     
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    
-    // Save listing to context
-    await addListing({
-      title: formData.title,
-      quantity: formData.quantity,
-      unit: formData.unit,
-      price: formData.price,
-      description: formData.description,
-      availability: formData.availability,
-      quality: analysis.quality,
-      location: "Pune, Maharashtra",
-    });
+    try {
+      // Save listing to Firestore through context
+      await addListing({
+        title: formData.title,
+        quantity: formData.quantity,
+        unit: formData.unit,
+        price: formData.price,
+        description: formData.description,
+        availability: formData.availability,
+        quality: analysis.quality,
+        location: "Pune, Maharashtra",
+        image: location.state?.image || "/placeholder.svg",
+      });
 
-    toast({
-      title: "Listing Published! 🎉",
-      description: "Your waste listing is now live for buyers to see.",
-    });
+      // Wait a moment for Firestore sync
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    navigate("/farmer/dashboard");
+      toast({
+        title: "Listing Published! 🎉",
+        description: "Your waste listing is now live and visible to buyers.",
+      });
+
+      navigate("/farmer/dashboard");
+    } catch (error) {
+      console.error("Error publishing listing:", error);
+      toast({
+        title: "Error",
+        description: "Failed to publish listing. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsPublishing(false);
+    }
   };
 
   return (

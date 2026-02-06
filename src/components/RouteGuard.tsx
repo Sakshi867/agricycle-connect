@@ -1,6 +1,5 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { useEffect, useState } from 'react';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -10,20 +9,12 @@ interface ProtectedRouteProps {
 const RouteGuard = ({ children, requiredRole }: ProtectedRouteProps) => {
   const { currentUser, role, loading } = useAuth();
   const location = useLocation();
-  const [checked, setChecked] = useState(false);
 
-  useEffect(() => {
-    // Wait for auth state to load
-    if (!loading) {
-      setChecked(true);
-    }
-  }, [loading]);
-
-  if (loading || !checked) {
-    // Show loading spinner while checking auth status
+  if (loading) {
+    // Minimal loading state - only show during actual auth loading
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+        <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
   }
@@ -34,9 +25,20 @@ const RouteGuard = ({ children, requiredRole }: ProtectedRouteProps) => {
   }
 
   // If a specific role is required and user doesn't have it
-  if (requiredRole && role !== requiredRole) {
+  // Only redirect if we're sure there's no role (not during loading)
+  if (requiredRole && role && role !== requiredRole) {
     // Redirect to role selection or unauthorized page
     return <Navigate to="/role-select" replace />;
+  }
+  
+  // If user has a role but it doesn't match required role, wait for proper sync
+  if (requiredRole && !role && currentUser) {
+    // User is authenticated but role not yet loaded - show loading
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
   }
 
   // User is authenticated and has required role (if specified)

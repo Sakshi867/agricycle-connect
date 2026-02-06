@@ -20,7 +20,8 @@ import AIAnalysis from "./pages/AIAnalysis";
 import ListingDetails from "./pages/ListingDetails";
 import FarmerListings from "./pages/FarmerListings";
 import FarmerMessages from "./pages/FarmerMessages";
-import FarmerProfile from "./pages/FarmerProfile";
+import FarmerMessageDetail from "./pages/FarmerMessageDetail";
+import FarmerProfile from "./pages/ProductionFarmerProfile";
 import FarmerSettings from "./pages/FarmerSettings";
 import FarmerPrivacy from "./pages/FarmerPrivacy";
 import FarmerSecurity from "./pages/FarmerSecurity";
@@ -34,7 +35,8 @@ import BuyerListingDetail from "./pages/BuyerListingDetail";
 import BuyerListings from "./pages/BuyerListings";
 import BuyerShortlist from "./pages/BuyerShortlist";
 import BuyerMessages from "./pages/BuyerMessages";
-import BuyerProfile from "./pages/BuyerProfile";
+import BuyerMessageDetail from "./pages/BuyerMessageDetail";
+import BuyerProfile from "./pages/ProductionBuyerProfile";
 import BuyerSettings from "./pages/BuyerSettings";
 import BuyerPrivacy from "./pages/BuyerPrivacy";
 import BuyerSecurity from "./pages/BuyerSecurity";
@@ -68,7 +70,7 @@ const App = () => (
               <Route path="/farmer/listing/:id" element={<RouteGuard requiredRole="farmer"><ListingDetails /></RouteGuard>} />
               <Route path="/farmer/listings" element={<RouteGuard requiredRole="farmer"><FarmerListings /></RouteGuard>} />
               <Route path="/farmer/messages" element={<RouteGuard requiredRole="farmer"><FarmerMessages /></RouteGuard>} />
-              <Route path="/farmer/messages/:id" element={<RouteGuard requiredRole="farmer"><FarmerMessages /></RouteGuard>} />
+              <Route path="/farmer/messages/:id" element={<RouteGuard requiredRole="farmer"><FarmerMessageDetail /></RouteGuard>} />
               <Route path="/farmer/profile" element={<RouteGuard requiredRole="farmer"><FarmerProfile /></RouteGuard>} />
               <Route path="/farmer/settings" element={<RouteGuard requiredRole="farmer"><FarmerSettings /></RouteGuard>} />
               <Route path="/farmer/privacy" element={<RouteGuard requiredRole="farmer"><FarmerPrivacy /></RouteGuard>} />
@@ -83,7 +85,7 @@ const App = () => (
               <Route path="/buyer/listing/:id" element={<RouteGuard requiredRole="buyer"><BuyerListingDetail /></RouteGuard>} />
               <Route path="/buyer/shortlist" element={<RouteGuard requiredRole="buyer"><BuyerShortlist /></RouteGuard>} />
               <Route path="/buyer/messages" element={<RouteGuard requiredRole="buyer"><BuyerMessages /></RouteGuard>} />
-              <Route path="/buyer/messages/:id" element={<RouteGuard requiredRole="buyer"><BuyerMessages /></RouteGuard>} />
+              <Route path="/buyer/messages/:id" element={<RouteGuard requiredRole="buyer"><BuyerMessageDetail /></RouteGuard>} />
               <Route path="/buyer/profile" element={<RouteGuard requiredRole="buyer"><BuyerProfile /></RouteGuard>} />
               <Route path="/buyer/settings" element={<RouteGuard requiredRole="buyer"><BuyerSettings /></RouteGuard>} />
               <Route path="/buyer/privacy" element={<RouteGuard requiredRole="buyer"><BuyerPrivacy /></RouteGuard>} />

@@ -77,10 +77,12 @@ const FarmerDashboard = () => {
 
         {/* Create Listing Button */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200">
-          <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-6 rounded-xl">
-            <Plus className="w-5 h-5 mr-2" />
-            Create New Listing
-          </Button>
+          <Link to="/farmer/create">
+            <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-6 rounded-xl">
+              <Plus className="w-5 h-5 mr-2" />
+              Create New Listing
+            </Button>
+          </Link>
         </div>
 
         {/* Recent Listings */}

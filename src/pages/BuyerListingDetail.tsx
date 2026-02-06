@@ -1,12 +1,18 @@
+import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, MapPin, Sparkles, User, MessageSquare, Phone, Bookmark, Share2, Package, Calendar, CheckCircle } from "lucide-react";
+import { ArrowLeft, MapPin, Sparkles, User, MessageSquare, Phone, Bookmark, Share2, Package, Calendar, CheckCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/context/AuthContext";
+import { messagingService } from "@/services/firebase/messagingService";
 
 const BuyerListingDetail = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const { toast } = useToast();
+  const { currentUser } = useAuth();
+  const [contacting, setContacting] = useState(false);
+  const [calling, setCalling] = useState(false);
 
   // Mock listing data
   const listing = {
@@ -19,6 +25,8 @@ const BuyerListingDetail = () => {
     quality: "Good",
     confidence: 94,
     farmerName: "Rajesh Kumar",
+    farmerId: "farmer123", // Mock farmer ID
+    farmerPhone: "+91 98765 43210", // Mock farmer phone number
     farmerRating: 4.8,
     description: "Fresh rice husk from recent harvest. Clean and dry, suitable for biomass energy, animal bedding, or composting.",
     availability: "Immediate",
@@ -26,11 +34,83 @@ const BuyerListingDetail = () => {
     image: "/placeholder.svg",
   };
 
-  const handleContact = () => {
-    toast({
-      title: "Contact Request Sent",
-      description: "The farmer will receive your inquiry shortly.",
-    });
+  const handleContact = async () => {
+    if (!currentUser) {
+      toast({
+        title: "Authentication Required",
+        description: "Please sign in to contact farmers.",
+      });
+      return;
+    }
+
+    setContacting(true);
+    try {
+      // Send initial message to start conversation
+      await messagingService.sendMessage(
+        currentUser.uid,
+        listing.farmerId,
+        'buyer',
+        'farmer',
+        `Hello ${listing.farmerName}, I'm interested in your ${listing.title} (${listing.quantity}) listed at ${listing.price}. Could you please provide more details about availability and pickup options?`
+      );
+
+      toast({
+        title: "Message Sent!",
+        description: "Your inquiry has been sent to the farmer.",
+      });
+
+      // Navigate to the conversation
+      const conversationId = [currentUser.uid, listing.farmerId].sort().join('_');
+      navigate(`/buyer/messages/${conversationId}`);
+    } catch (error) {
+      console.error('Error sending message:', error);
+      toast({
+        title: "Error",
+        description: "Failed to send message. Please try again.",
+      });
+    } finally {
+      setContacting(false);
+    }
+  };
+
+  const handleCallFarmer = () => {
+    if (!listing.farmerPhone) {
+      toast({
+        title: "No Phone Number",
+        description: "Farmer's phone number is not available.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setCalling(true);
+    try {
+      // Create tel: link for phone dialer
+      const telLink = `tel:${listing.farmerPhone}`;
+      
+      // Try to open the phone dialer
+      window.location.href = telLink;
+      
+      // Fallback if no dialer app is available
+      setTimeout(() => {
+        if (calling) {
+          toast({
+            title: "No Calling App Available",
+            description: "No calling app available on this device. Farmer's number: " + listing.farmerPhone,
+            variant: "destructive"
+          });
+          setCalling(false);
+        }
+      }, 1000);
+    } catch (error) {
+      console.error('Error initiating call:', error);
+      toast({
+        title: "Error",
+        description: "Failed to initiate call. Please try again.",
+        variant: "destructive"
+      });
+      setCalling(false);
+    }
   };
 
   const handleSave = () => {
@@ -169,13 +249,37 @@ const BuyerListingDetail = () => {
       {/* Bottom CTA */}
       <div className="fixed bottom-0 left-0 right-0 bg-background border-t border-border p-4 safe-bottom">
         <div className="flex gap-3">
-          <Button variant="outline" size="lg" className="flex-1" onClick={handleContact}>
-            <Phone className="w-4 h-4" />
-            Call
+          <Button 
+            variant="outline" 
+            size="lg" 
+            className="flex-1" 
+            onClick={handleCallFarmer}
+            disabled={calling}
+          >
+            {calling ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Calling...
+              </>
+            ) : (
+              <>
+                <Phone className="w-4 h-4" />
+                Call
+              </>
+            )}
           </Button>
-          <Button variant="buyer" size="lg" className="flex-[2]" onClick={handleContact}>
-            <MessageSquare className="w-4 h-4" />
-            Contact Farmer
+          <Button variant="buyer" size="lg" className="flex-[2]" onClick={handleContact} disabled={contacting}>
+            {contacting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Sending...
+              </>
+            ) : (
+              <>
+                <MessageSquare className="w-4 h-4" />
+                Contact Farmer
+              </>
+            )}
           </Button>
         </div>
       </div>
