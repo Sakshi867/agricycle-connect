@@ -14,12 +14,11 @@ const AIAnalysis = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(true);
   const [analysisComplete, setAnalysisComplete] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
   const [analysisResults, setAnalysisResults] = useState({
-    wasteType: "Analyzing...",
-    quality: "Good",
+    wasteType: "Unknown",
+    quality: "Unknown",
     confidence: 0,
-    suggestedPrice: "₹0 - ₹0 per kg",
+    suggestedPrice: "Calculating...",
     industries: [] as string[],
     estimatedWeight: "Calculating...",
   });

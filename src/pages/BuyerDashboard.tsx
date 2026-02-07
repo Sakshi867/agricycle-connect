@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Search, Filter, MapPin, Sparkles, Bookmark, Package, ChevronDown } from "lucide-react";
+import { Search, Filter, MapPin, Sparkles, Bookmark, Package, ChevronDown, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import BuyerBottomNav from "@/components/BuyerBottomNav";
@@ -28,8 +28,19 @@ const BuyerDashboard = () => {
       {/* Header */}
       <header className="bg-secondary px-4 pt-safe-top">
         <div className="py-4">
-          <p className="text-secondary-foreground/70 text-sm">Welcome back,</p>
-          <h1 className="text-xl font-bold text-secondary-foreground">{displayName}</h1>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-secondary-foreground/70 text-sm">Welcome back,</p>
+              <h1 className="text-xl font-bold text-secondary-foreground">{displayName}</h1>
+            </div>
+            <div className="w-12 h-12 rounded-2xl bg-secondary-foreground/20 flex items-center justify-center overflow-hidden">
+              {currentUser?.photoURL ? (
+                <img src={currentUser.photoURL} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                <Building2 className="w-6 h-6 text-secondary-foreground" />
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Search */}
@@ -51,8 +62,8 @@ const BuyerDashboard = () => {
                 key={filter.id}
                 onClick={() => setSelectedFilter(filter.id)}
                 className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${selectedFilter === filter.id
-                    ? "bg-secondary-foreground text-secondary"
-                    : "bg-secondary-foreground/10 text-secondary-foreground hover:bg-secondary-foreground/20"
+                  ? "bg-secondary-foreground text-secondary"
+                  : "bg-secondary-foreground/10 text-secondary-foreground hover:bg-secondary-foreground/20"
                   }`}
               >
                 {filter.label}
@@ -84,8 +95,12 @@ const BuyerDashboard = () => {
           >
             <div className="flex">
               {/* Image */}
-              <div className="w-28 h-28 bg-muted flex items-center justify-center flex-shrink-0">
-                <Package className="w-10 h-10 text-muted-foreground" />
+              <div className="w-28 h-28 bg-stone-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                {listing.image ? (
+                  <img src={listing.image} alt={listing.title} className="w-full h-full object-cover" />
+                ) : (
+                  <Package className="w-10 h-10 text-muted-foreground" />
+                )}
               </div>
 
               {/* Content */}
@@ -97,8 +112,8 @@ const BuyerDashboard = () => {
                   </div>
                   <button
                     className={`p-2 -m-2 transition-colors ${listing.isBookmarked
-                        ? "text-secondary"
-                        : "text-muted-foreground hover:text-secondary"
+                      ? "text-secondary"
+                      : "text-muted-foreground hover:text-secondary"
                       }`}
                     onClick={(e) => {
                       e.preventDefault();
@@ -110,12 +125,12 @@ const BuyerDashboard = () => {
                 </div>
 
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-lg font-bold text-secondary">{listing.price}</span>
+                  <span className="text-lg font-bold text-secondary">₹{listing.price}/{listing.unit}</span>
                   <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${listing.quality === "Excellent"
-                      ? "bg-primary/10 text-primary"
-                      : listing.quality === "Good"
-                        ? "bg-accent/20 text-accent-foreground"
-                        : "bg-muted text-muted-foreground"
+                    ? "bg-primary/10 text-primary"
+                    : listing.quality === "Good"
+                      ? "bg-accent/20 text-accent-foreground"
+                      : "bg-muted text-muted-foreground"
                     }`}>
                     {listing.quality}
                   </span>

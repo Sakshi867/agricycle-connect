@@ -1,18 +1,18 @@
 import { Link } from "react-router-dom";
-import { 
-  ArrowLeft, 
-  Building2, 
-  MapPin, 
-  Phone, 
-  Mail, 
-  Edit, 
-  Settings, 
-  Shield, 
-  HelpCircle, 
-  LogOut, 
-  Camera, 
-  Upload, 
-  Check, 
+import {
+  ArrowLeft,
+  Building2,
+  MapPin,
+  Phone,
+  Mail,
+  Edit,
+  Settings,
+  Shield,
+  HelpCircle,
+  LogOut,
+  Camera,
+  Upload,
+  Check,
   X,
   Loader2
 } from "lucide-react";
@@ -23,6 +23,7 @@ import { messagingService } from "@/services/firebase/messagingService";
 import { useEffect, useState, useRef } from "react";
 import { toast } from "@/hooks/use-toast";
 import { updateProfile } from "firebase/auth";
+import { compressImage } from "@/lib/imageUtils";
 
 interface BuyerProfileData {
   name: string;
@@ -47,17 +48,17 @@ const ProductionBuyerProfile = () => {
     businessType: "Biomass Energy Company",
     industry: "Renewable Energy",
     photoURL: currentUser?.photoURL || "",
-    memberSince: currentUser?.metadata.creationTime 
-      ? new Date(currentUser.metadata.creationTime).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) 
+    memberSince: currentUser?.metadata.creationTime
+      ? new Date(currentUser.metadata.creationTime).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
       : "Jan 2024",
     totalPurchases: 8,
     totalSpent: "₹32,500"
   });
-  
+
   const [isEditing, setIsEditing] = useState(false);
   const [tempData, setTempData] = useState<BuyerProfileData>(profileData);
   const [uploading, setUploading] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // Default to false for instant render
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load user data from Firestore on mount
@@ -140,16 +141,32 @@ const ProductionBuyerProfile = () => {
     setUploading(true);
     try {
       if (currentUser?.uid) {
-        const photoURL = await messagingService.uploadUserPhoto(currentUser.uid, file);
-        
+        // Read file as base64 and compress
+        const reader = new FileReader();
+        const photoURL = await new Promise<string>((resolve, reject) => {
+          reader.onload = async (e) => {
+            try {
+              const originalBase64 = e.target?.result as string;
+              // Compress aggressively for profile picture (200px)
+              const compressed = await compressImage(originalBase64, 30); // 30KB target
+              const uploadedURL = await messagingService.uploadUserPhoto(currentUser.uid, compressed);
+              resolve(uploadedURL);
+            } catch (err) {
+              reject(err);
+            }
+          };
+          reader.onerror = (err) => reject(err);
+          reader.readAsDataURL(file);
+        });
+
         // Update local state
         const updatedData = { ...profileData, photoURL };
         setProfileData(updatedData);
         setTempData(updatedData);
-        
+
         // Update Firebase Auth photoURL
         await updateProfile(currentUser, { photoURL });
-        
+
         toast({
           title: "Success!",
           description: "Profile picture updated successfully."
@@ -190,10 +207,10 @@ const ProductionBuyerProfile = () => {
         if (currentUser.displayName !== tempData.name) {
           await updateProfile(currentUser, { displayName: tempData.name });
         }
-        
+
         setProfileData(tempData);
         setIsEditing(false);
-        
+
         toast({
           title: "Success!",
           description: "Profile updated successfully."
@@ -229,16 +246,7 @@ const ProductionBuyerProfile = () => {
     { icon: LogOut, label: "Logout", path: "/auth", action: "logout" },
   ];
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin text-secondary mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading profile...</p>
-        </div>
-      </div>
-    );
-  }
+  // Removed blocking loading check for faster navigation
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -266,16 +274,16 @@ const ProductionBuyerProfile = () => {
               <div className="relative">
                 <div className="w-20 h-20 rounded-2xl bg-secondary-foreground/20 flex items-center justify-center overflow-hidden">
                   {profileData.photoURL ? (
-                    <img 
-                      src={profileData.photoURL} 
-                      alt="Profile" 
+                    <img
+                      src={profileData.photoURL}
+                      alt="Profile"
                       className="w-full h-full object-cover"
                     />
                   ) : (
                     <Building2 className="w-10 h-10 text-secondary-foreground" />
                   )}
                 </div>
-                <button 
+                <button
                   className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-accent flex items-center justify-center hover:bg-accent/80 transition-colors"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploading}
@@ -299,7 +307,7 @@ const ProductionBuyerProfile = () => {
                   {isEditing ? (
                     <input
                       value={tempData.name}
-                      onChange={(e) => setTempData({...tempData, name: e.target.value})}
+                      onChange={(e) => setTempData({ ...tempData, name: e.target.value })}
                       className="bg-transparent border-b border-secondary-foreground/30 focus:outline-none focus:border-secondary-foreground text-secondary-foreground w-full"
                       placeholder="Enter business name"
                     />
@@ -309,17 +317,17 @@ const ProductionBuyerProfile = () => {
               </div>
               {isEditing ? (
                 <div className="flex gap-2">
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     className="w-10 h-10 bg-green-500/20 hover:bg-green-500/30"
                     onClick={handleSave}
                   >
                     <Check className="w-5 h-5 text-green-500" />
                   </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     className="w-10 h-10 bg-red-500/20 hover:bg-red-500/30"
                     onClick={handleCancel}
                   >
@@ -327,9 +335,9 @@ const ProductionBuyerProfile = () => {
                   </Button>
                 </div>
               ) : (
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
+                <Button
+                  variant="ghost"
+                  size="icon"
                   className="w-10 h-10 bg-secondary-foreground/10 hover:bg-secondary-foreground/20"
                   onClick={handleEditClick}
                 >
@@ -365,7 +373,7 @@ const ProductionBuyerProfile = () => {
               {isEditing ? (
                 <input
                   value={tempData.industry}
-                  onChange={(e) => setTempData({...tempData, industry: e.target.value})}
+                  onChange={(e) => setTempData({ ...tempData, industry: e.target.value })}
                   className="bg-transparent border-b border-foreground/30 focus:outline-none focus:border-foreground w-full"
                   placeholder="Industry"
                 />
@@ -389,7 +397,7 @@ const ProductionBuyerProfile = () => {
                 {isEditing ? (
                   <input
                     value={tempData.businessType}
-                    onChange={(e) => setTempData({...tempData, businessType: e.target.value})}
+                    onChange={(e) => setTempData({ ...tempData, businessType: e.target.value })}
                     className="bg-transparent border-b border-foreground/30 focus:outline-none focus:border-foreground w-full"
                     placeholder="Business type"
                   />
@@ -408,7 +416,7 @@ const ProductionBuyerProfile = () => {
                 {isEditing ? (
                   <input
                     value={tempData.phone}
-                    onChange={(e) => setTempData({...tempData, phone: e.target.value})}
+                    onChange={(e) => setTempData({ ...tempData, phone: e.target.value })}
                     className="bg-transparent border-b border-foreground/30 focus:outline-none focus:border-foreground w-full"
                     placeholder="Phone number"
                   />
@@ -427,7 +435,7 @@ const ProductionBuyerProfile = () => {
                 {isEditing ? (
                   <input
                     value={tempData.email}
-                    onChange={(e) => setTempData({...tempData, email: e.target.value})}
+                    onChange={(e) => setTempData({ ...tempData, email: e.target.value })}
                     className="bg-transparent border-b border-foreground/30 focus:outline-none focus:border-foreground w-full"
                     placeholder="Email address"
                   />
@@ -446,7 +454,7 @@ const ProductionBuyerProfile = () => {
                 {isEditing ? (
                   <input
                     value={tempData.location}
-                    onChange={(e) => setTempData({...tempData, location: e.target.value})}
+                    onChange={(e) => setTempData({ ...tempData, location: e.target.value })}
                     className="bg-transparent border-b border-foreground/30 focus:outline-none focus:border-foreground w-full"
                     placeholder="Location"
                   />

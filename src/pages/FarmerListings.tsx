@@ -13,7 +13,7 @@ const FarmerListings = () => {
       sold: { bg: "bg-secondary/10", text: "text-secondary", label: "Sold" },
       draft: { bg: "bg-muted", text: "text-muted-foreground", label: "Draft" },
     };
-    
+
     const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.draft;
     return (
       <span className={`text-xs font-medium px-2 py-1 rounded-full ${config.bg} ${config.text}`}>
@@ -22,9 +22,13 @@ const FarmerListings = () => {
     );
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = (id: string) => {
     updateListing(id, { status: "draft" });
   };
+
+  const activeCount = listings.filter(l => l.status === "active").length;
+  const soldCount = listings.filter(l => l.status === "sold").length;
+  const draftCount = listings.filter(l => l.status === "draft").length;
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -45,15 +49,15 @@ const FarmerListings = () => {
       <div className="px-4 py-4">
         <div className="grid grid-cols-3 gap-3 mb-6">
           <div className="bg-primary/5 rounded-2xl p-4 text-center border border-primary/20">
-            <p className="text-2xl font-bold text-primary">3</p>
+            <p className="text-2xl font-bold text-primary">{activeCount}</p>
             <p className="text-xs text-muted-foreground">Active</p>
           </div>
           <div className="bg-secondary/5 rounded-2xl p-4 text-center border border-secondary/20">
-            <p className="text-2xl font-bold text-secondary">1</p>
+            <p className="text-2xl font-bold text-secondary">{soldCount}</p>
             <p className="text-xs text-muted-foreground">Sold</p>
           </div>
           <div className="bg-muted rounded-2xl p-4 text-center">
-            <p className="text-2xl font-bold text-foreground">1</p>
+            <p className="text-2xl font-bold text-foreground">{draftCount}</p>
             <p className="text-xs text-muted-foreground">Draft</p>
           </div>
         </div>
@@ -66,8 +70,12 @@ const FarmerListings = () => {
             <div key={listing.id} className="bg-card rounded-2xl p-5 shadow-card border border-border">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 rounded-xl bg-muted flex items-center justify-center">
-                    <Package className="w-7 h-7 text-muted-foreground" />
+                  <div className="w-16 h-16 rounded-xl bg-stone-100 flex items-center justify-center overflow-hidden flex-shrink-0">
+                    {listing.image ? (
+                      <img src={listing.image} alt={listing.title} className="w-full h-full object-cover" />
+                    ) : (
+                      <Package className="w-7 h-7 text-stone-400" />
+                    )}
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
@@ -103,25 +111,31 @@ const FarmerListings = () => {
                 <div className="flex items-center gap-2">
                   {listing.status === "active" && (
                     <>
-                      <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
-                        <Eye className="w-4 h-4 mr-1" />
-                        View
-                      </Button>
-                      <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
-                        <Edit className="w-4 h-4 mr-1" />
-                        Edit
-                      </Button>
+                      <Link to={`/farmer/listing/${listing.id}`}>
+                        <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
+                          <Eye className="w-4 h-4 mr-1" />
+                          View
+                        </Button>
+                      </Link>
+                      <Link to={`/farmer/listing/${listing.id}`}>
+                        <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
+                          <Edit className="w-4 h-4 mr-1" />
+                          Edit
+                        </Button>
+                      </Link>
                     </>
                   )}
                   {listing.status === "draft" && (
-                    <Button variant="ghost" size="sm" className="text-primary hover:text-primary">
-                      <Edit className="w-4 h-4 mr-1" />
-                      Complete
-                    </Button>
+                    <Link to={`/farmer/listing/${listing.id}`}>
+                      <Button variant="ghost" size="sm" className="text-primary hover:text-primary">
+                        <Edit className="w-4 h-4 mr-1" />
+                        Complete
+                      </Button>
+                    </Link>
                   )}
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     className="text-destructive hover:text-destructive"
                     onClick={() => handleDelete(listing.id)}
                   >

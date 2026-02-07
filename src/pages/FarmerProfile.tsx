@@ -7,6 +7,7 @@ import { messagingService } from "@/services/firebase/messagingService";
 import { useEffect, useState, useRef } from "react";
 import { toast } from "@/hooks/use-toast";
 import { updateProfile } from "firebase/auth";
+import { compressImage } from "@/lib/imageUtils";
 
 const FarmerProfile = () => {
   const { currentUser, signOut } = useAuth();
@@ -79,13 +80,30 @@ const FarmerProfile = () => {
     setUploading(true);
     try {
       if (currentUser?.uid) {
-        const photoURL = await messagingService.uploadUserPhoto(currentUser.uid, file);
+        // Read file as base64
+        const reader = new FileReader();
+        const photoURL = await new Promise<string>((resolve, reject) => {
+          reader.onload = async (e) => {
+            try {
+              const originalBase64 = e.target?.result as string;
+              // Compress aggressively for profile picture (200px)
+              const compressed = await compressImage(originalBase64, 30); // 30KB target
+              const uploadedURL = await messagingService.uploadUserPhoto(currentUser.uid, compressed);
+              resolve(uploadedURL);
+            } catch (err) {
+              reject(err);
+            }
+          };
+          reader.onerror = (err) => reject(err);
+          reader.readAsDataURL(file);
+        });
+
         setFarmerData(prev => ({ ...prev, photoURL }));
         setTempData(prev => ({ ...prev, photoURL }));
-        
+
         // Update Firebase Auth photoURL
         await updateProfile(currentUser, { photoURL });
-        
+
         toast({
           title: "Success!",
           description: "Profile picture updated successfully."
@@ -125,10 +143,10 @@ const FarmerProfile = () => {
         if (currentUser.displayName !== tempData.name) {
           await updateProfile(currentUser, { displayName: tempData.name });
         }
-        
+
         setFarmerData(tempData);
         setIsEditing(false);
-        
+
         toast({
           title: "Success!",
           description: "Profile updated successfully."
@@ -190,16 +208,16 @@ const FarmerProfile = () => {
               <div className="relative">
                 <div className="w-20 h-20 rounded-2xl bg-primary-foreground/20 flex items-center justify-center overflow-hidden">
                   {farmerData.photoURL ? (
-                    <img 
-                      src={farmerData.photoURL} 
-                      alt="Profile" 
+                    <img
+                      src={farmerData.photoURL}
+                      alt="Profile"
                       className="w-full h-full object-cover"
                     />
                   ) : (
                     <User className="w-10 h-10 text-primary-foreground" />
                   )}
                 </div>
-                <button 
+                <button
                   className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-accent flex items-center justify-center hover:bg-accent/80 transition-colors"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploading}
@@ -222,7 +240,7 @@ const FarmerProfile = () => {
                 <h2 className="text-xl font-bold">{isEditing ? (
                   <input
                     value={tempData.name}
-                    onChange={(e) => setTempData({...tempData, name: e.target.value})}
+                    onChange={(e) => setTempData({ ...tempData, name: e.target.value })}
                     className="bg-transparent border-b border-primary-foreground/30 focus:outline-none focus:border-primary-foreground text-primary-foreground"
                     placeholder="Enter name"
                   />
@@ -231,17 +249,17 @@ const FarmerProfile = () => {
               </div>
               {isEditing ? (
                 <div className="flex gap-2">
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     className="w-10 h-10 bg-green-500/20 hover:bg-green-500/30"
                     onClick={handleSave}
                   >
                     <Check className="w-5 h-5 text-green-500" />
                   </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     className="w-10 h-10 bg-red-500/20 hover:bg-red-500/30"
                     onClick={handleCancel}
                   >
@@ -249,9 +267,9 @@ const FarmerProfile = () => {
                   </Button>
                 </div>
               ) : (
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
+                <Button
+                  variant="ghost"
+                  size="icon"
                   className="w-10 h-10 bg-primary-foreground/10 hover:bg-primary-foreground/20"
                   onClick={handleEditClick}
                 >

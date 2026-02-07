@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Plus, Camera, Bell, TrendingUp, Package, MessageSquare, Leaf } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -6,21 +7,46 @@ import Logo from "@/components/Logo";
 import FarmerBottomNav from "@/components/FarmerBottomNav";
 import { useListings } from "@/context/ListingsContext";
 import { useAuth } from "@/context/AuthContext";
+import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { db } from "@/services/firebase/config";
 
 const FarmerDashboard = () => {
   const { farmerListings } = useListings();
   const { currentUser } = useAuth();
+  const [pendingRequests, setPendingRequests] = useState(0);
+
+  useEffect(() => {
+    if (!currentUser) return;
+
+    // Listen for pending connection requests
+    const q = query(
+      collection(db, 'conversations'),
+      where('participants', 'array-contains', currentUser.uid),
+      where('status', '==', 'pending')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      // Only count where current user isn't the one who started it? 
+      // Actually, if it's pending and I'm a participant, it's a request for ME if I'm the farmer.
+      // But in this logic, anyone can see pending. Let's just count all pending for now.
+      setPendingRequests(snapshot.size);
+    });
+
+    return () => unsubscribe();
+  }, [currentUser]);
 
   const displayName = currentUser?.displayName || "Farmer";
   const initials = displayName.split(" ").map(n => n[0]).join("").toUpperCase().substring(0, 2);
 
   const activeListings = farmerListings.filter(l => l.status === "active").length;
-  const totalInquiries = farmerListings.reduce((sum, l) => sum + (l.inquiries || 0), 0);
+  const estimatedEarnings = farmerListings
+    .filter(l => l.status === "active")
+    .reduce((sum, l) => sum + (parseFloat(l.quantity) * parseFloat(l.price) || 0), 0);
 
   const stats = [
     { value: activeListings.toString(), label: "Active Listings", icon: <Package className="w-5 h-5" />, variant: "primary" as const },
-    { value: totalInquiries.toString(), label: "Buyer Inquiries", icon: <MessageSquare className="w-5 h-5" />, variant: "secondary" as const },
-    { value: "₹12,500", label: "Estimated Earnings", icon: <TrendingUp className="w-5 h-5" />, variant: "accent" as const },
+    { value: pendingRequests.toString(), label: "New Requests", icon: <Bell className="w-5 h-5" />, variant: "secondary" as const },
+    { value: `₹${estimatedEarnings.toLocaleString()}`, label: "Est. Earnings", icon: <TrendingUp className="w-5 h-5" />, variant: "accent" as const },
   ];
 
   const recentListings = farmerListings
@@ -32,7 +58,8 @@ const FarmerDashboard = () => {
       quantity: `${l.quantity} ${l.unit}`,
       status: l.status,
       inquiries: l.inquiries || 0,
-      price: `₹${l.price}/${l.unit}`
+      price: `₹${l.price}/${l.unit}`,
+      image: l.image
     }));
 
   return (
@@ -53,8 +80,12 @@ const FarmerDashboard = () => {
             <button className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center">
               <Bell className="w-5 h-5 text-white" />
             </button>
-            <div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center">
-              <span className="text-white font-bold">{initials}</span>
+            <div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center overflow-hidden">
+              {currentUser?.photoURL ? (
+                <img src={currentUser.photoURL} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-white font-bold">{initials}</span>
+              )}
             </div>
           </div>
         </div>
@@ -102,8 +133,12 @@ const FarmerDashboard = () => {
                 className="block bg-white rounded-xl p-4 shadow-sm border border-stone-200 hover:shadow-md transition-shadow"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-stone-100 flex items-center justify-center">
-                    <Package className="w-6 h-6 text-stone-600" />
+                  <div className="w-12 h-12 rounded-xl bg-stone-100 flex items-center justify-center overflow-hidden flex-shrink-0">
+                    {listing.image ? (
+                      <img src={listing.image} alt={listing.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <Package className="w-6 h-6 text-stone-600" />
+                    )}
                   </div>
                   <div className="flex-1">
                     <h3 className="font-medium text-stone-800">{listing.name}</h3>

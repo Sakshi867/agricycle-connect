@@ -31,14 +31,10 @@ const RouteGuard = ({ children, requiredRole }: ProtectedRouteProps) => {
     return <Navigate to="/role-select" replace />;
   }
   
-  // If user has a role but it doesn't match required role, wait for proper sync
+  // Allow navigation to proceed even if role is not yet loaded
+  // The actual role verification happens after navigation
   if (requiredRole && !role && currentUser) {
-    // User is authenticated but role not yet loaded - show loading
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
+    // Just let the user proceed - the role will sync in background
   }
 
   // User is authenticated and has required role (if specified)

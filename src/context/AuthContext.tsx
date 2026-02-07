@@ -81,23 +81,25 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     // Setup auth state listener
     const unsubscribeFn = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user as AppUser);
-
+    
       if (user) {
         // Get role from localStorage first (instant access - critical for routing)
         const userRole = authService.getCurrentUserRole();
         if (userRole) {
           setRole(userRole);
         }
-        
-        // Background sync with Firestore (non-blocking)
-        fetchRoleFromFirestore(user.uid);
+          
+        // Background sync with Firestore (non-blocking) - fire and forget
+        setTimeout(() => {
+          fetchRoleFromFirestore(user.uid);
+        }, 0);
       } else {
         // Clear role if user is not authenticated
         setRole(null);
         authService.clearUserRole();
       }
-
-      // Set loading to false after auth state and role are determined
+    
+      // Set loading to false immediately to allow navigation
       setLoading(false);
     });
 
@@ -107,7 +109,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     return cleanupAuthListener;
   }, []);
 
-  // Sign in function - ensure immediate role setting
+  // Sign in function - optimized for speed
   const signIn = async (email: string, password: string) => {
     setLoading(true);
     try {
@@ -126,13 +128,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         }
       }
       
-      // Background sync - don't block UI
-      if (user.uid) {
-        fetchRoleFromFirestore(user.uid);
-      }
-      
-      // Only set loading to false after role is confirmed
+      // Set loading to false immediately to allow navigation
       setLoading(false);
+      
+      // Background sync - don't block UI (fire and forget)
+      if (user.uid) {
+        setTimeout(() => {
+          fetchRoleFromFirestore(user.uid!);
+        }, 0);
+      }
     } catch (error) {
       setLoading(false);
       throw error;
@@ -182,7 +186,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     await sendEmailVerification(auth.currentUser);
   };
 
-  // Sign in with Google - ensure immediate role setting
+  // Sign in with Google - optimized for speed
   const signInWithGoogle = async (role: UserRole) => {
     setLoading(true);
     try {
@@ -191,13 +195,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       setRole(role);
       authService.setCurrentUserRole(role);
       
-      // Background sync - don't block UI
-      if (user.uid) {
-        fetchRoleFromFirestore(user.uid);
-      }
-      
-      // Only set loading to false after role is confirmed
+      // Set loading to false immediately to allow navigation
       setLoading(false);
+      
+      // Background sync - don't block UI (fire and forget)
+      if (user.uid) {
+        setTimeout(() => {
+          fetchRoleFromFirestore(user.uid!);
+        }, 0);
+      }
     } catch (error) {
       setLoading(false);
       throw error;

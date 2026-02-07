@@ -1,21 +1,20 @@
-import { 
-  collection, 
-  addDoc, 
-  getDocs, 
+import {
+  collection,
+  addDoc,
+  getDocs,
   getDoc,
   setDoc,
-  query, 
-  where, 
-  orderBy, 
-  onSnapshot, 
+  query,
+  where,
+  orderBy,
+  onSnapshot,
   Timestamp,
   updateDoc,
   doc,
   serverTimestamp,
   increment
 } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage } from './config';
+import { db } from './config';
 
 export interface Message {
   id?: string;
@@ -36,6 +35,7 @@ export interface Conversation {
   lastMessage: string;
   lastMessageTime: Timestamp;
   unreadCount: number;
+  status: 'pending' | 'accepted';
   // UI display properties
   name?: string;
   avatar?: string;
@@ -49,8 +49,8 @@ export interface Conversation {
 class MessagingService {
   // Send a message and update conversation
   async sendMessage(
-    senderId: string, 
-    receiverId: string, 
+    senderId: string,
+    receiverId: string,
     senderRole: 'farmer' | 'buyer',
     receiverRole: 'farmer' | 'buyer',
     message: string
@@ -58,7 +58,7 @@ class MessagingService {
     try {
       // Create a conversation ID from the two user IDs sorted alphabetically
       const conversationId = [senderId, receiverId].sort().join('_');
-      
+
       // Add the message to the messages collection
       await addDoc(collection(db, 'messages'), {
         conversationId,
@@ -74,7 +74,7 @@ class MessagingService {
       // Update or create the conversation document
       const conversationRef = doc(db, 'conversations', conversationId);
       const conversationSnap = await getDoc(conversationRef);
-      
+
       if (conversationSnap.exists()) {
         // Update existing conversation
         await updateDoc(conversationRef, {
@@ -90,6 +90,7 @@ class MessagingService {
           participantRoles: [senderRole, receiverRole],
           lastMessage: message,
           lastMessageTime: serverTimestamp(),
+          status: 'pending', // New conversations start as pending requests
           [`unreadCount_${senderId}`]: 0,
           [`unreadCount_${receiverId}`]: 1, // Receiver starts with 1 unread
         });
@@ -134,6 +135,20 @@ class MessagingService {
     }
   }
 
+  // Accept a connection request
+  async acceptRequest(conversationId: string): Promise<void> {
+    try {
+      const conversationRef = doc(db, 'conversations', conversationId);
+      await updateDoc(conversationRef, {
+        status: 'accepted',
+        lastMessageTime: serverTimestamp() // Refresh time for sorting
+      });
+    } catch (error) {
+      console.error('Error accepting request:', error);
+      throw error;
+    }
+  }
+
   // Update user profile in Firestore
   async updateUserProfile(userId: string, profileData: any): Promise<void> {
     try {
@@ -153,7 +168,7 @@ class MessagingService {
     try {
       const userRef = doc(db, 'users', userId);
       const userSnap = await getDoc(userRef);
-      
+
       if (userSnap.exists()) {
         return { id: userSnap.id, ...userSnap.data() };
       }
@@ -170,15 +185,17 @@ class MessagingService {
     }
   }
 
-  // Upload user profile photo
-  async uploadUserPhoto(userId: string, file: File): Promise<string> {
+  // Upload user profile photo (Now using Firestore base64 to stay on free tier)
+  async uploadUserPhoto(userId: string, base64Image: string): Promise<string> {
     try {
-      const fileRef = ref(storage, `user-photos/${userId}/${Date.now()}_${file.name}`);
-      const snapshot = await uploadBytes(fileRef, file);
-      const downloadURL = await getDownloadURL(snapshot.ref);
-      return downloadURL;
+      const userRef = doc(db, 'users', userId);
+      await updateDoc(userRef, {
+        photoURL: base64Image,
+        updatedAt: serverTimestamp()
+      });
+      return base64Image;
     } catch (error) {
-      console.error('Error uploading user photo:', error);
+      console.error('Error updating user photo in Firestore:', error);
       throw error;
     }
   }

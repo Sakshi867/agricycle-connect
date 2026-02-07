@@ -1,17 +1,19 @@
-import { Link } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { ArrowLeft, Package, MapPin, Sparkles, Bookmark, Trash2, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import BuyerBottomNav from "@/components/BuyerBottomNav";
 import { useListings } from "@/context/ListingsContext";
 
 const BuyerShortlist = () => {
+  const navigate = useNavigate();
   const { buyerListings, toggleBookmark } = useListings();
-  
-  const shortlistedItems = buyerListings.filter(item => item.isBookmarked);
 
-  const contactSeller = (id: number) => {
-    // In a real app, this would open a message thread
-    console.log(`Contacting seller for item ${id}`);
+  const shortlistedItems = buyerListings.filter(item => item.isBookmarked);
+  const uniqueSellers = new Set(shortlistedItems.map(item => item.farmerId)).size;
+  const totalValue = shortlistedItems.reduce((sum, item) => sum + (parseFloat(item.quantity) * parseFloat(item.price) || 0), 0);
+
+  const contactSeller = (id: string) => {
+    navigate(`/buyer/listing/${id}`);
   };
 
   return (
@@ -39,11 +41,11 @@ const BuyerShortlist = () => {
                 <p className="text-xs text-muted-foreground">Items</p>
               </div>
               <div className="bg-primary/5 rounded-2xl p-4 text-center border border-primary/20">
-                <p className="text-2xl font-bold text-primary">2</p>
+                <p className="text-2xl font-bold text-primary">{uniqueSellers}</p>
                 <p className="text-xs text-muted-foreground">Sellers</p>
               </div>
               <div className="bg-accent/10 rounded-2xl p-4 text-center border border-accent/30">
-                <p className="text-2xl font-bold text-accent">₹7.5k</p>
+                <p className="text-2xl font-bold text-accent">₹{(totalValue / 1000).toFixed(1)}k</p>
                 <p className="text-xs text-muted-foreground">Est. Value</p>
               </div>
             </div>
@@ -53,8 +55,8 @@ const BuyerShortlist = () => {
           <div className="px-4 pb-6">
             <div className="space-y-4">
               {shortlistedItems.map((item) => (
-                <div 
-                  key={item.id} 
+                <div
+                  key={item.id}
                   className="bg-card rounded-2xl overflow-hidden shadow-card border border-border"
                 >
                   <Link to={`/buyer/listing/${item.id}`} className="block">
@@ -69,9 +71,9 @@ const BuyerShortlist = () => {
                         <div className="flex items-start justify-between mb-2">
                           <div>
                             <h3 className="font-semibold text-foreground">{item.title}</h3>
-                            <p className="text-sm text-muted-foreground">{item.quantity}</p>
+                            <p className="text-sm text-muted-foreground">{item.quantity} {item.unit}</p>
                           </div>
-                          <button 
+                          <button
                             onClick={(e) => {
                               e.preventDefault();
                               toggleBookmark(item.id);
@@ -83,14 +85,13 @@ const BuyerShortlist = () => {
                         </div>
 
                         <div className="flex items-center gap-2 mb-2">
-                          <span className="text-lg font-bold text-secondary">{item.price}</span>
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                            item.quality === "Excellent"
+                          <span className="text-lg font-bold text-secondary">₹{item.price}/{item.unit}</span>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${item.quality === "Excellent"
                               ? "bg-primary/10 text-primary"
                               : item.quality === "Good"
-                              ? "bg-accent/20 text-accent-foreground"
-                              : "bg-muted text-muted-foreground"
-                          }`}>
+                                ? "bg-accent/20 text-accent-foreground"
+                                : "bg-muted text-muted-foreground"
+                            }`}>
                             {item.quality}
                           </span>
                         </div>
@@ -115,18 +116,18 @@ const BuyerShortlist = () => {
 
                   {/* Action Buttons */}
                   <div className="px-4 py-3 bg-muted/30 border-t border-border flex gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
+                    <Button
+                      variant="outline"
+                      size="sm"
                       className="flex-1"
                       onClick={() => contactSeller(item.id)}
                     >
                       <ShoppingCart className="w-4 h-4 mr-2" />
                       Contact Seller
                     </Button>
-                    <Button 
-                      variant="secondary" 
-                      size="sm" 
+                    <Button
+                      variant="secondary"
+                      size="sm"
                       className="flex-1"
                       onClick={() => toggleBookmark(item.id)}
                     >

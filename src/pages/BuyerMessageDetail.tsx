@@ -17,7 +17,7 @@ const BuyerMessageDetail = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(true);
-  const [otherUser, setOtherUser] = useState({ name: "", role: "" });
+  const [otherUser, setOtherUser] = useState({ name: "", role: "", status: "accepted" });
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Scroll to bottom when new messages arrive
@@ -38,7 +38,8 @@ const BuyerMessageDetail = () => {
           const otherParticipantIndex = convoData.participants.findIndex((id: string) => id !== currentUser.uid);
           setOtherUser({
             name: convoData.participantNames[otherParticipantIndex] || `User ${convoData.participants[otherParticipantIndex].substring(0, 5)}`,
-            role: convoData.participantRoles[otherParticipantIndex] || 'farmer'
+            role: convoData.participantRoles[otherParticipantIndex] || 'farmer',
+            status: convoData.status || 'accepted'
           });
         }
       });
@@ -68,10 +69,10 @@ const BuyerMessageDetail = () => {
           });
         }
       });
-      
+
       setMessages(msgs);
       setLoading(false);
-      
+
       // Mark conversation as read
       messagingService.markConversationAsRead(currentUser.uid, conversationId);
     });
@@ -90,10 +91,10 @@ const BuyerMessageDetail = () => {
       // Extract the other user's ID from the conversation ID
       const [userId1, userId2] = conversationId.split('_');
       const receiverId = userId1 === currentUser.uid ? userId2 : userId1;
-      
+
       // Get the other user's role from the conversation data
       const otherUserRole = otherUser.role === 'farmer' ? 'farmer' : 'buyer';
-      
+
       await messagingService.sendMessage(
         currentUser.uid,
         receiverId,
@@ -101,7 +102,7 @@ const BuyerMessageDetail = () => {
         otherUserRole as 'farmer' | 'buyer',
         newMessage.trim()
       );
-      
+
       setNewMessage("");
     } catch (error) {
       console.error('Error sending message:', error);
@@ -152,8 +153,8 @@ const BuyerMessageDetail = () => {
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
         {messages.map((message) => {
           const isOwnMessage = message.senderId === currentUser?.uid;
-          const messageTime = message.timestamp ? 
-            new Date(message.timestamp.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
+          const messageTime = message.timestamp ?
+            new Date(message.timestamp.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
             : 'Just now';
 
           return (
@@ -162,11 +163,10 @@ const BuyerMessageDetail = () => {
               className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
             >
               <div
-                className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-                  isOwnMessage
-                    ? 'bg-secondary text-secondary-foreground rounded-br-md'
-                    : 'bg-muted text-foreground rounded-bl-md'
-                }`}
+                className={`max-w-[80%] rounded-2xl px-4 py-3 ${isOwnMessage
+                  ? 'bg-secondary text-secondary-foreground rounded-br-md'
+                  : 'bg-muted text-foreground rounded-bl-md'
+                  }`}
               >
                 <p className="text-sm">{message.message}</p>
                 <div className={`flex items-center gap-1 mt-1 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
@@ -188,33 +188,39 @@ const BuyerMessageDetail = () => {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Message Input */}
+      {/* Message Input or Pending Banner */}
       <div className="bg-card border-t border-border p-4 safe-bottom">
-        <div className="flex items-end gap-2">
-          <div className="flex-1 relative">
-            <Input
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              onKeyDown={handleKeyPress}
-              placeholder="Type a message..."
-              className="pr-12 py-3"
-            />
+        {(otherUser as any).status === 'pending' ? (
+          <div className="bg-secondary/5 border border-secondary/20 rounded-2xl p-4 text-center">
+            <p className="text-sm text-secondary font-medium">Wait for the farmer to accept your request to continue chatting.</p>
+          </div>
+        ) : (
+          <div className="flex items-end gap-2">
+            <div className="flex-1 relative">
+              <Input
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                onKeyDown={handleKeyPress}
+                placeholder="Type a message..."
+                className="pr-12 py-3"
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8"
+              >
+                <Paperclip className="w-4 h-4" />
+              </Button>
+            </div>
             <Button
-              variant="ghost"
-              size="icon"
-              className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8"
+              onClick={handleSendMessage}
+              disabled={!newMessage.trim()}
+              className="w-12 h-12 rounded-full bg-secondary hover:bg-secondary/90"
             >
-              <Paperclip className="w-4 h-4" />
+              <Send className="w-5 h-5" />
             </Button>
           </div>
-          <Button
-            onClick={handleSendMessage}
-            disabled={!newMessage.trim()}
-            className="w-12 h-12 rounded-full bg-secondary hover:bg-secondary/90"
-          >
-            <Send className="w-5 h-5" />
-          </Button>
-        </div>
+        )}
       </div>
 
       <BuyerBottomNav />

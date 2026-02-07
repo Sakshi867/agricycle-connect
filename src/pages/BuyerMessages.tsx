@@ -20,14 +20,14 @@ const BuyerMessages = () => {
 
     // Listen to conversations for the current user
     const conversationsQuery = messagingService.getConversationsForUser(currentUser.uid);
-    
+
     const unsubscribe = onSnapshot(conversationsQuery, (snapshot) => {
       const convos: Conversation[] = [];
       snapshot.docChanges().forEach((change) => {
         if (change.type === 'added' || change.type === 'modified') {
           const convoData = change.doc.data() as any;
           const unreadCount = convoData[`unreadCount_${currentUser.uid}`] || 0;
-          
+
           convos.push({
             id: change.doc.id,
             participants: convoData.participants || [],
@@ -35,11 +35,12 @@ const BuyerMessages = () => {
             participantRoles: convoData.participantRoles || [],
             lastMessage: convoData.lastMessage || '',
             lastMessageTime: convoData.lastMessageTime || null,
-            unreadCount: unreadCount
+            unreadCount: unreadCount,
+            status: convoData.status || 'accepted'
           });
         }
       });
-      
+
       setConversations(convos);
       setLoading(false);
     });
@@ -80,10 +81,10 @@ const BuyerMessages = () => {
             const otherParticipantId = conversation.participants[otherParticipantIndex];
             const otherParticipantName = conversation.participantNames[otherParticipantIndex] || `User ${otherParticipantId.substring(0, 5)}`;
             const otherParticipantRole = conversation.participantRoles[otherParticipantIndex] || 'farmer';
-            
+
             // Get the first two letters of the name for the avatar
             const avatarLetters = otherParticipantName.substring(0, 2).toUpperCase();
-            
+
             return (
               <button
                 key={conversation.id}
@@ -99,20 +100,26 @@ const BuyerMessages = () => {
                       <h3 className="font-semibold text-foreground">{otherParticipantName}</h3>
                       {/* Format timestamp to readable time */}
                       <span className="text-xs text-muted-foreground">
-                        {conversation.lastMessageTime ? 
-                          new Date(conversation.lastMessageTime.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
+                        {conversation.lastMessageTime ?
+                          new Date(conversation.lastMessageTime.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                           : 'Just now'}
                       </span>
                     </div>
                     <p className="text-sm text-muted-foreground mb-1 capitalize">{otherParticipantRole}</p>
                     <div className="flex items-center justify-between">
                       <p className="text-sm text-muted-foreground truncate max-w-[200px]">
-                        {conversation.lastMessage}
+                        {conversation.status === 'pending' ? 'Request pending...' : conversation.lastMessage}
                       </p>
-                      {conversation.unreadCount > 0 && (
-                        <span className="w-5 h-5 rounded-full bg-secondary flex items-center justify-center">
-                          <span className="text-xs font-bold text-secondary-foreground">{conversation.unreadCount}</span>
+                      {conversation.status === 'pending' ? (
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-secondary bg-secondary/10 px-2 py-0.5 rounded-full">
+                          Pending
                         </span>
+                      ) : (
+                        conversation.unreadCount > 0 && (
+                          <span className="w-5 h-5 rounded-full bg-secondary flex items-center justify-center">
+                            <span className="text-xs font-bold text-secondary-foreground">{conversation.unreadCount}</span>
+                          </span>
+                        )
                       )}
                     </div>
                   </div>

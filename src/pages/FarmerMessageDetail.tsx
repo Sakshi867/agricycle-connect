@@ -17,7 +17,7 @@ const FarmerMessageDetail = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(true);
-  const [otherUser, setOtherUser] = useState({ name: "", role: "" });
+  const [otherUser, setOtherUser] = useState({ name: "", role: "", status: "accepted" });
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Scroll to bottom when new messages arrive
@@ -38,7 +38,8 @@ const FarmerMessageDetail = () => {
           const otherParticipantIndex = convoData.participants.findIndex((id: string) => id !== currentUser.uid);
           setOtherUser({
             name: convoData.participantNames[otherParticipantIndex] || `User ${convoData.participants[otherParticipantIndex].substring(0, 5)}`,
-            role: convoData.participantRoles[otherParticipantIndex] || 'buyer'
+            role: convoData.participantRoles[otherParticipantIndex] || 'buyer',
+            status: convoData.status || 'accepted'
           });
         }
       });
@@ -68,10 +69,10 @@ const FarmerMessageDetail = () => {
           });
         }
       });
-      
+
       setMessages(msgs);
       setLoading(false);
-      
+
       // Mark conversation as read
       messagingService.markConversationAsRead(currentUser.uid, conversationId);
     });
@@ -90,10 +91,10 @@ const FarmerMessageDetail = () => {
       // Extract the other user's ID from the conversation ID
       const [userId1, userId2] = conversationId.split('_');
       const receiverId = userId1 === currentUser.uid ? userId2 : userId1;
-      
+
       // Get the other user's role from the conversation data
       const otherUserRole = otherUser.role === 'buyer' ? 'buyer' : 'farmer';
-      
+
       await messagingService.sendMessage(
         currentUser.uid,
         receiverId,
@@ -101,7 +102,7 @@ const FarmerMessageDetail = () => {
         otherUserRole as 'farmer' | 'buyer',
         newMessage.trim()
       );
-      
+
       setNewMessage("");
     } catch (error) {
       console.error('Error sending message:', error);
@@ -152,8 +153,8 @@ const FarmerMessageDetail = () => {
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
         {messages.map((message) => {
           const isOwnMessage = message.senderId === currentUser?.uid;
-          const messageTime = message.timestamp ? 
-            new Date(message.timestamp.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
+          const messageTime = message.timestamp ?
+            new Date(message.timestamp.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
             : 'Just now';
 
           return (
@@ -162,11 +163,10 @@ const FarmerMessageDetail = () => {
               className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
             >
               <div
-                className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-                  isOwnMessage
+                className={`max-w-[80%] rounded-2xl px-4 py-3 ${isOwnMessage
                     ? 'bg-primary text-primary-foreground rounded-br-md'
                     : 'bg-muted text-foreground rounded-bl-md'
-                }`}
+                  }`}
               >
                 <p className="text-sm">{message.message}</p>
                 <div className={`flex items-center gap-1 mt-1 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
@@ -188,33 +188,48 @@ const FarmerMessageDetail = () => {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Message Input */}
+      {/* Message Input or Accept Banner */}
       <div className="bg-card border-t border-border p-4 safe-bottom">
-        <div className="flex items-end gap-2">
-          <div className="flex-1 relative">
-            <Input
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              onKeyDown={handleKeyPress}
-              placeholder="Type a message..."
-              className="pr-12 py-3"
-            />
+        {otherUser.status === 'pending' ? (
+          <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 flex items-center justify-between">
+            <div className="flex-1 mr-4">
+              <p className="text-sm font-medium text-foreground">Connection Request Pending</p>
+              <p className="text-xs text-muted-foreground">Accept this request to start chatting with the buyer.</p>
+            </div>
             <Button
-              variant="ghost"
-              size="icon"
-              className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8"
+              variant="farmer"
+              onClick={() => messagingService.acceptRequest(conversationId!)}
             >
-              <Paperclip className="w-4 h-4" />
+              Accept Request
             </Button>
           </div>
-          <Button
-            onClick={handleSendMessage}
-            disabled={!newMessage.trim()}
-            className="w-12 h-12 rounded-full bg-primary hover:bg-primary/90"
-          >
-            <Send className="w-5 h-5" />
-          </Button>
-        </div>
+        ) : (
+          <div className="flex items-end gap-2">
+            <div className="flex-1 relative">
+              <Input
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                onKeyDown={handleKeyPress}
+                placeholder="Type a message..."
+                className="pr-12 py-3"
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8"
+              >
+                <Paperclip className="w-4 h-4" />
+              </Button>
+            </div>
+            <Button
+              onClick={handleSendMessage}
+              disabled={!newMessage.trim()}
+              className="w-12 h-12 rounded-full bg-primary hover:bg-primary/90"
+            >
+              <Send className="w-5 h-5" />
+            </Button>
+          </div>
+        )}
       </div>
 
       <FarmerBottomNav />

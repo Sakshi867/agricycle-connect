@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, useParams } from "react-router-dom";
 import { ArrowLeft, Package, MapPin, Calendar, Sparkles, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,12 +7,18 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useListings } from "@/context/ListingsContext";
+import { useEffect } from "react";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "@/services/firebase/config";
+import { Loader2 } from "lucide-react";
 
 const ListingDetails = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { id } = useParams();
   const { toast } = useToast();
-  const { addListing } = useListings();
+  const { addListing, updateListing, farmerListings } = useListings();
+  const [loading, setLoading] = useState(!!id);
 
   const analysis = location.state?.analysis || {
     wasteType: "Rice Husk",
@@ -27,47 +33,119 @@ const ListingDetails = () => {
     price: "5",
     description: "",
     availability: "immediate",
+    image: "/placeholder.svg",
+    quality: analysis.quality
   });
 
   const [isPublishing, setIsPublishing] = useState(false);
 
+  useEffect(() => {
+    const fetchListing = async () => {
+      if (!id) return;
+
+      // Try context first
+      const found = farmerListings.find(l => l.id === id);
+      if (found) {
+        setFormData({
+          title: found.title,
+          quantity: found.quantity,
+          unit: found.unit,
+          price: found.price,
+          description: found.description,
+          availability: found.availability,
+          image: found.image || "/placeholder.svg",
+          quality: found.quality
+        });
+        setLoading(false);
+      } else {
+        try {
+          const docRef = doc(db, 'listings', id);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            setFormData({
+              title: data.title,
+              quantity: data.quantity,
+              unit: data.unit,
+              price: data.price,
+              description: data.description,
+              availability: data.availability,
+              image: data.image || "/placeholder.svg",
+              quality: data.quality
+            });
+          }
+        } catch (error) {
+          console.error("Error fetching listing:", error);
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchListing();
+  }, [id, farmerListings]);
+
   const handlePublish = async () => {
     setIsPublishing(true);
-    
+
     try {
-      // Save listing to Firestore through context
-      await addListing({
-        title: formData.title,
-        quantity: formData.quantity,
-        unit: formData.unit,
-        price: formData.price,
-        description: formData.description,
-        availability: formData.availability,
-        quality: analysis.quality,
-        location: "Pune, Maharashtra",
-        image: location.state?.image || "/placeholder.svg",
-      });
+      if (id) {
+        // Update mode
+        await updateListing(id, {
+          title: formData.title,
+          quantity: formData.quantity,
+          unit: formData.unit,
+          price: formData.price,
+          description: formData.description,
+          availability: formData.availability,
+        });
+        toast({
+          title: "Listing Updated! ✅",
+          description: "Changes have been saved successfully.",
+        });
+      } else {
+        // Create mode
+        // Trigger create (non-blocking) - onSnapshot + Persistence handles the rest
+        addListing({
+          title: formData.title,
+          quantity: formData.quantity,
+          unit: formData.unit,
+          price: formData.price,
+          description: formData.description,
+          availability: formData.availability,
+          quality: formData.quality,
+          location: "Pune, Maharashtra",
+          image: location.state?.image || "/placeholder.svg",
+        }).catch(err => {
+          console.error("Delayed persistence error:", err);
+        });
 
-      // Wait a moment for Firestore sync
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+        toast({
+          title: "Listing Published! 🎉",
+          description: "Your waste listing is now live and visible to buyers.",
+        });
+      }
 
-      toast({
-        title: "Listing Published! 🎉",
-        description: "Your waste listing is now live and visible to buyers.",
-      });
-
+      // Navigate immediately to dashboard
       navigate("/farmer/dashboard");
     } catch (error) {
-      console.error("Error publishing listing:", error);
+      console.error("Immediate error in publishing:", error);
       toast({
         title: "Error",
-        description: "Failed to publish listing. Please try again.",
+        description: "Failed to initiate listing creation.",
         variant: "destructive",
       });
-    } finally {
       setIsPublishing(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -81,8 +159,12 @@ const ListingDetails = () => {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h1 className="text-lg font-semibold text-foreground">Listing Details</h1>
-            <p className="text-sm text-muted-foreground">Review and publish</p>
+            <h1 className="text-lg font-semibold text-foreground">
+              {id ? "Listing Details" : "Publish Listing"}
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              {id ? "View and edit your listing" : "Review and publish"}
+            </p>
           </div>
         </div>
       </header>
@@ -182,15 +264,13 @@ const ListingDetails = () => {
                 key={option.value}
                 type="button"
                 onClick={() => setFormData({ ...formData, availability: option.value })}
-                className={`p-4 rounded-xl border-2 text-left transition-all ${
-                  formData.availability === option.value
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:border-primary/30"
-                }`}
+                className={`p-4 rounded-xl border-2 text-left transition-all ${formData.availability === option.value
+                  ? "border-primary bg-primary/5"
+                  : "border-border hover:border-primary/30"
+                  }`}
               >
-                <option.icon className={`w-5 h-5 mb-2 ${
-                  formData.availability === option.value ? "text-primary" : "text-muted-foreground"
-                }`} />
+                <option.icon className={`w-5 h-5 mb-2 ${formData.availability === option.value ? "text-primary" : "text-muted-foreground"
+                  }`} />
                 <p className="font-medium text-foreground">{option.label}</p>
               </button>
             ))}
@@ -201,8 +281,12 @@ const ListingDetails = () => {
         <div className="bg-card rounded-2xl p-4 shadow-card border border-border">
           <p className="text-sm text-muted-foreground mb-3">Listing Preview</p>
           <div className="flex items-start gap-4">
-            <div className="w-16 h-16 rounded-xl bg-muted flex items-center justify-center">
-              <Package className="w-7 h-7 text-muted-foreground" />
+            <div className="w-16 h-16 rounded-xl bg-muted flex items-center justify-center overflow-hidden">
+              {formData.image ? (
+                <img src={formData.image} alt="Preview" className="w-full h-full object-cover" />
+              ) : (
+                <Package className="w-7 h-7 text-muted-foreground" />
+              )}
             </div>
             <div className="flex-1">
               <h4 className="font-semibold text-foreground">{formData.title}</h4>
@@ -215,7 +299,7 @@ const ListingDetails = () => {
               </div>
             </div>
             <span className="px-2 py-1 bg-primary/10 text-primary text-xs font-medium rounded-full">
-              {analysis.quality}
+              {formData.quality}
             </span>
           </div>
         </div>
@@ -235,7 +319,7 @@ const ListingDetails = () => {
           ) : (
             <>
               <Check className="w-5 h-5" />
-              Publish Listing
+              {id ? "Save Changes" : "Publish Listing"}
             </>
           )}
         </Button>

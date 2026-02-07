@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, ReactNode, useEffect } from "react";
-import { collection, addDoc, updateDoc, doc, getDocs, query, where, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, getDocs, query, where, orderBy, onSnapshot, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db } from '@/services/firebase/config';
 import { useAuth } from '@/context/AuthContext';
 
@@ -19,6 +19,7 @@ interface Listing {
   date: string;
   status: "active" | "sold" | "draft";
   image?: string;
+  createdAt?: any; // Firestore Timestamp
   isBookmarked?: boolean;
   inquiries?: number;
 }
@@ -35,54 +36,70 @@ interface ListingsContextType {
 const ListingsContext = createContext<ListingsContextType | undefined>(undefined);
 
 export const ListingsProvider = ({ children }: { children: ReactNode }) => {
-  const { currentUser } = useAuth();
+  const { currentUser, role } = useAuth();
   const [farmerListings, setFarmerListings] = useState<Listing[]>([]);
   const [buyerListings, setBuyerListings] = useState<Listing[]>([]);
 
   // Load listings based on user role with proper error handling
   useEffect(() => {
-    if (!currentUser || !currentUser.role) return;
+    if (!currentUser || !role) return;
 
     let unsubscribe: (() => void) | null = null;
 
     try {
-      if (currentUser.role === 'farmer') {
+      if (role === 'farmer') {
         // Subscribe to farmer's own listings
         const q = query(
           collection(db, 'listings'),
-          where('farmerId', '==', currentUser.uid),
-          orderBy('date', 'desc')
+          where('farmerId', '==', currentUser.uid)
         );
 
-        unsubscribe = onSnapshot(q, 
+        unsubscribe = onSnapshot(q, { includeMetadataChanges: true },
           (snapshot) => {
             const listings = snapshot.docs.map(doc => ({
               id: doc.id,
               ...doc.data()
             })) as Listing[];
-            console.log('Farmer listings updated:', listings.length);
-            setFarmerListings(listings);
+
+            // Client-side sort: new to old
+            const sortedListings = [...listings].sort((a, b) => {
+              // For pending writes, serverTimestamp() is null locally.
+              // We use a fallback (current time) to ensure they stay at the top.
+              const timeA = a.createdAt?.seconds || (Date.now() / 1000);
+              const timeB = b.createdAt?.seconds || (Date.now() / 1000);
+              return timeB - timeA;
+            });
+
+            console.log('Farmer listings updated:', sortedListings.length, snapshot.metadata.hasPendingWrites ? '(pending)' : '(synced)');
+            setFarmerListings(sortedListings);
           },
           (error) => {
             console.error('Error fetching farmer listings:', error);
           }
         );
-      } else if (currentUser.role === 'buyer') {
+      } else if (role === 'buyer') {
         // Buyers see all active listings
         const q = query(
           collection(db, 'listings'),
-          where('status', '==', 'active'),
-          orderBy('date', 'desc')
+          where('status', '==', 'active')
         );
 
-        unsubscribe = onSnapshot(q, 
+        unsubscribe = onSnapshot(q, { includeMetadataChanges: true },
           (snapshot) => {
             const listings = snapshot.docs.map(doc => ({
               id: doc.id,
               ...doc.data()
             })) as Listing[];
-            console.log('Buyer listings updated:', listings.length);
-            setBuyerListings(listings);
+
+            // Client-side sort: new to old
+            const sortedListings = [...listings].sort((a, b) => {
+              const timeA = a.createdAt?.seconds || (Date.now() / 1000);
+              const timeB = b.createdAt?.seconds || (Date.now() / 1000);
+              return timeB - timeA;
+            });
+
+            console.log('Buyer listings updated:', sortedListings.length, snapshot.metadata.hasPendingWrites ? '(pending)' : '(synced)');
+            setBuyerListings(sortedListings);
           },
           (error) => {
             console.error('Error fetching buyer listings:', error);
@@ -99,32 +116,51 @@ export const ListingsProvider = ({ children }: { children: ReactNode }) => {
         unsubscribe = null;
       }
     };
-  }, [currentUser]);
+  }, [currentUser, role]);
 
   const addListing = async (listing: Omit<Listing, "id" | "date" | "status" | "inquiries" | "farmerId" | "farmerName">) => {
     if (!currentUser) {
       throw new Error('User must be logged in to add a listing');
     }
 
-    const newListing = {
+    const id = `temp-${Date.now()}`;
+    const newListing: Listing = {
       ...listing,
+      id,
       farmerId: currentUser.uid,
       farmerName: currentUser.displayName || currentUser.email || 'Anonymous Farmer',
       date: new Date().toISOString().split('T')[0],
+      createdAt: new Date(), // For optimistic UI
       status: "active" as const,
       inquiries: 0,
     };
 
+    // Optimistic Update
+    setFarmerListings(prev => [newListing, ...prev]);
+    setBuyerListings(prev => [newListing, ...prev]);
+
     try {
-      console.log('Adding new listing:', newListing);
-      const docRef = await addDoc(collection(db, 'listings'), newListing);
-      console.log('Listing added with ID:', docRef.id);
-      
-      // Give Firestore time to sync before returning
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
+      console.log('Adding new listing to Firestore:', newListing);
+      const { id: _, ...listingData } = newListing;
+
+      // Sanitization: Remove any undefined values that Firestore would reject
+      const sanitizedData = Object.fromEntries(
+        Object.entries(listingData).filter(([_, v]) => v !== undefined)
+      );
+
+      // Use serverTimestamp for Firestore
+      const docRef = await addDoc(collection(db, 'listings'), {
+        ...sanitizedData,
+        createdAt: serverTimestamp()
+      });
+      console.log('Successfully wrote to Firestore cache with ID:', docRef.id);
+
+      // Return immediately, the onSnapshot will handle replacing the temp listing
       return docRef.id;
     } catch (error) {
+      // Rollback on error
+      setFarmerListings(prev => prev.filter(l => l.id !== id));
+      setBuyerListings(prev => prev.filter(l => l.id !== id));
       console.error('Error adding listing:', error);
       throw error;
     }

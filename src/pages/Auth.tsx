@@ -8,14 +8,23 @@ import Logo from "@/components/Logo";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import { validateSignUpFields, validateSignInFields } from "@/lib/authUtils";
+import { useEffect } from "react";
+import { authService } from "@/services/firebase/authService";
 
 const Auth = () => {
   const [searchParams] = useSearchParams();
   const role = searchParams.get("role") || "farmer";
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { signIn, signUp, setRole, sendEmailVerification, signInWithGoogle } = useAuth();
-  
+  const { currentUser, role: currentRole, signIn, signUp, setRole, signInWithGoogle } = useAuth();
+
+  // Auto-redirect if already logged in
+  useEffect(() => {
+    if (currentUser && currentRole) {
+      navigate(`/${currentRole}/dashboard`);
+    }
+  }, [currentUser, currentRole, navigate]);
+
   // Google sign in function
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
@@ -25,9 +34,10 @@ const Auth = () => {
         title: "Success!",
         description: "Successfully signed in with Google.",
       });
-      
-      // Navigate to dashboard
-      navigate(`/${role}/dashboard`);
+
+      // Navigate to dashboard using the role we just set or the one in context
+      const targetRole = authService.getCurrentUserRole() || role;
+      navigate(`/${targetRole}/dashboard`);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -64,21 +74,21 @@ const Auth = () => {
           formData.name,
           role as 'farmer' | 'buyer'
         );
-        
+
         if (!isValid) {
           throw new Error(errors.join(', '));
         }
-        
+
         // Sign up with Firebase
         await signUp(formData.email, formData.password, formData.name, role as 'farmer' | 'buyer');
         toast({
           title: "Account created!",
           description: "Your account has been created successfully.",
         });
-        
+
         // Set role in context
         setRole(role as 'farmer' | 'buyer');
-        
+
         // Navigate to dashboard
         navigate(`/${role}/dashboard`);
       } else {
@@ -87,20 +97,25 @@ const Auth = () => {
           formData.email,
           formData.password
         );
-        
+
         if (!isValid) {
           throw new Error(errors.join(', '));
         }
-        
+
         // Sign in with Firebase
         await signIn(formData.email, formData.password);
+
+        // Get the actual role from the account, not the URL
+        const actualRole = authService.getCurrentUserRole();
+        const finalRole = actualRole || role;
+
         toast({
           title: "Welcome back!",
-          description: "Successfully signed in.",
+          description: `Successfully signed in as ${finalRole}.`,
         });
-        
+
         // Navigate to dashboard
-        navigate(`/${role}/dashboard`);
+        navigate(`/${finalRole}/dashboard`);
       }
     } catch (error: any) {
       toast({
@@ -156,22 +171,20 @@ const Auth = () => {
             <div className="flex bg-muted rounded-xl p-1 mb-6">
               <button
                 onClick={() => setAuthMethod("phone")}
-                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                  authMethod === "phone"
-                    ? "bg-card shadow-sm text-foreground"
-                    : "text-muted-foreground"
-                }`}
+                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all ${authMethod === "phone"
+                  ? "bg-card shadow-sm text-foreground"
+                  : "text-muted-foreground"
+                  }`}
               >
                 <Phone className="w-4 h-4" />
                 Phone
               </button>
               <button
                 onClick={() => setAuthMethod("email")}
-                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                  authMethod === "email"
-                    ? "bg-card shadow-sm text-foreground"
-                    : "text-muted-foreground"
-                }`}
+                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all ${authMethod === "email"
+                  ? "bg-card shadow-sm text-foreground"
+                  : "text-muted-foreground"
+                  }`}
               >
                 <Mail className="w-4 h-4" />
                 Email
@@ -289,7 +302,7 @@ const Auth = () => {
                 <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
               </div>
             </div>
-        
+
             {/* Google Sign-In */}
             <Button
               variant="outline"
@@ -323,7 +336,7 @@ const Auth = () => {
               )}
               Sign in with Google
             </Button>
-        
+
             {/* Toggle Sign In/Up */}
             <p className="text-center mt-6 text-sm text-muted-foreground">
               {isSignUp ? "Already have an account?" : "Don't have an account?"}{" "}

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Camera, Upload, X, Image as ImageIcon, ArrowLeft, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import FarmerBottomNav from "@/components/FarmerBottomNav";
+import { compressImage } from "@/lib/imageUtils";
 
 const CreateListing = () => {
   const navigate = useNavigate();
@@ -10,13 +11,21 @@ const CreateListing = () => {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(true);
 
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = (e) => {
-        setSelectedImage(e.target?.result as string);
-        setIsCapturing(false);
+      reader.onload = async (e) => {
+        const originalBase64 = e.target?.result as string;
+        try {
+          const compressed = await compressImage(originalBase64);
+          setSelectedImage(compressed);
+          setIsCapturing(false);
+        } catch (error) {
+          console.error("Compression failed:", error);
+          setSelectedImage(originalBase64);
+          setIsCapturing(false);
+        }
       };
       reader.readAsDataURL(file);
     }
