@@ -29,5 +29,3 @@ export const db = initializeFirestore(app, {
 export const storage = getStorage(app);
 
 export default app;
-
-export default app;
