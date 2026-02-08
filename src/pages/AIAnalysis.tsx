@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Sparkles, Check, Loader2, Leaf, TrendingUp, Factory, ArrowRight, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { analyzeWasteImage } from "@/services/ai";
+import { analyzeWithGenkit } from "@/services/genkitService";
 
 const AIAnalysis = () => {
   const navigate = useNavigate();
@@ -45,14 +45,14 @@ const AIAnalysis = () => {
         throw new Error('Failed to load image for analysis');
       }
 
-      // Use the new AI service directly
-      const result = await analyzeWasteImage(blob, 'waste-image.jpg');
+      // Use the new Genkit service
+      const result = await analyzeWithGenkit(blob);
 
       if (!result.success) {
         throw new Error(result.error || 'Analysis failed');
       }
 
-      // Update results mapping to match new service output
+      // Update results mapping
       setAnalysisResults({
         wasteType: result.wasteType,
         quality: result.quality,

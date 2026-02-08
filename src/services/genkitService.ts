@@ -4,7 +4,8 @@ import { AIAnalysisResult } from "./ai";
  * Service to connect to the deployed Genkit backend
  */
 
-const GENKIT_SERVICE_URL = import.meta.env.VITE_GENKIT_SERVICE_URL;
+const rawUrl = import.meta.env.VITE_GENKIT_SERVICE_URL;
+const GENKIT_SERVICE_URL = rawUrl && !rawUrl.startsWith('http') ? `https://${rawUrl}` : rawUrl;
 const GENKIT_API_KEY = import.meta.env.VITE_GENKIT_API_KEY; // Optional key for auth
 
 /**
