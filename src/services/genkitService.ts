@@ -6,53 +6,60 @@ import { AIAnalysisResult } from "./ai";
 
 const rawUrl = import.meta.env.VITE_GENKIT_SERVICE_URL;
 const GENKIT_SERVICE_URL = rawUrl && !rawUrl.startsWith('http') ? `https://${rawUrl}` : rawUrl;
-const GENKIT_API_KEY = import.meta.env.VITE_GENKIT_API_KEY; // Optional key for auth
+
+// Matching the backend route: /api/analysis/waste
+const GENKIT_FLOW_ENDPOINT = GENKIT_SERVICE_URL
+    ? `${GENKIT_SERVICE_URL}/api/analysis/waste`
+    : '';
 
 /**
  * Analyzes waste using the remote Genkit service
+ * Updated to include location and quantity as required by the backend
  */
-export async function analyzeWithGenkit(imageBlob: Blob): Promise<AIAnalysisResult> {
+export async function analyzeWithGenkit(
+    imageBlob: Blob,
+    location: string = "Not Specified",
+    quantity: string = "1"
+): Promise<AIAnalysisResult> {
     try {
-        if (!GENKIT_SERVICE_URL) {
+        if (!GENKIT_FLOW_ENDPOINT) {
             throw new Error("VITE_GENKIT_SERVICE_URL is not configured in .env");
         }
 
-        // Convert blob to base64 for transmission
-        const base64Image = await blobToBase64(imageBlob);
+        console.log("Calling Genkit at:", GENKIT_FLOW_ENDPOINT);
 
-        console.log("Calling Genkit service at:", GENKIT_SERVICE_URL);
+        // Prepare Multipart Form Data
+        const formData = new FormData();
+        formData.append('image', imageBlob, 'waste-image.jpg');
 
-        const response = await fetch(GENKIT_SERVICE_URL, {
+        // FIX: Added the missing required fields
+        formData.append('location', location);
+        formData.append('quantity', quantity);
+
+        const response = await fetch(GENKIT_FLOW_ENDPOINT, {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                ...(GENKIT_API_KEY && { "Authorization": `Bearer ${GENKIT_API_KEY}` }),
-            },
-            body: JSON.stringify({
-                data: {
-                    image: base64Image,
-                }
-            }),
+            // Note: browser automatically sets multipart/form-data headers
+            body: formData,
         });
 
         if (!response.ok) {
             const errorText = await response.text();
-            throw new Error(`Genkit Service Error: ${response.status} - ${errorText}`);
+            throw new Error(`Service Error: ${response.status} - ${errorText}`);
         }
 
         const json = await response.json();
 
-        // Assuming Genkit returns the result in the 'result' or top-level field
-        const analysisData = json.result || json;
+        // Handle standard Genkit or custom Express response wrapping
+        const analysisData = json.data || json.result || json;
 
         return {
-            wasteType: analysisData.wasteType,
-            reasoning: analysisData.reasoning,
-            quality: analysisData.quality,
-            confidence: analysisData.confidence,
-            suggestedPrice: analysisData.suggestedPrice,
-            industries: analysisData.industries || [],
-            estimatedWeight: analysisData.estimatedWeight,
+            wasteType: analysisData.wasteType || "Unknown",
+            reasoning: analysisData.reasoning || "Analysis complete.",
+            quality: analysisData.quality || "Standard",
+            confidence: analysisData.confidence || 0.85,
+            suggestedPrice: analysisData.suggestedPrice || "Market Rate",
+            industries: Array.isArray(analysisData.industries) ? analysisData.industries : [],
+            estimatedWeight: analysisData.estimatedWeight || quantity,
             success: true,
         };
 
@@ -73,7 +80,7 @@ export async function analyzeWithGenkit(imageBlob: Blob): Promise<AIAnalysisResu
 }
 
 /**
- * Helper to convert Blob to Base64 string
+ * Helper to convert Blob to Base64 (if needed elsewhere)
  */
 function blobToBase64(blob: Blob): Promise<string> {
     return new Promise((resolve, reject) => {

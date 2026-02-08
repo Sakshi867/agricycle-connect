@@ -151,13 +151,19 @@ export const ListingsProvider = ({ children }: { children: ReactNode }) => {
       console.log('Adding new listing to Firestore:', newListing);
       let finalImageUrl = newListing.image;
 
-      // 1. If image is base64, upload to Firebase Storage
+      // 1. If image is base64, try to upload to Firebase Storage
       if (newListing.image && newListing.image.startsWith('data:image')) {
-        console.log('Uploading image to Firebase Storage...');
-        const storageRef = ref(storage, `listings/${currentUser.uid}/${Date.now()}_listing.jpg`);
-        const uploadResult = await uploadString(storageRef, newListing.image, 'data_url');
-        finalImageUrl = await getDownloadURL(uploadResult.ref);
-        console.log('Image uploaded successfully:', finalImageUrl);
+        try {
+          console.log('Uploading image to Firebase Storage...');
+          const storageRef = ref(storage, `listings/${currentUser.uid}/${Date.now()}_listing.jpg`);
+          const uploadResult = await uploadString(storageRef, newListing.image, 'data_url');
+          finalImageUrl = await getDownloadURL(uploadResult.ref);
+          console.log('Image uploaded successfully:', finalImageUrl);
+        } catch (storageError) {
+          console.warn('Storage upload failed (CORS issue), using base64 fallback:', storageError);
+          // Fallback: Store compressed base64 in Firestore temporarily
+          finalImageUrl = newListing.image;
+        }
       }
 
       const { id: _, ...listingData } = newListing;
