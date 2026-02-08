@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, Building2, MapPin, Phone, Mail, Edit, Settings, Shield, HelpCircle, LogOut, Camera, Upload, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import BuyerBottomNav from "@/components/BuyerBottomNav";
@@ -11,6 +11,8 @@ import { compressImage } from "@/lib/imageUtils";
 
 const BuyerProfile = () => {
   const { currentUser, signOut } = useAuth();
+  const navigate = useNavigate();
+
   const [buyerData, setBuyerData] = useState({
     name: currentUser?.displayName || "Buyer",
     phone: "+91 98765 43210",
@@ -177,6 +179,7 @@ const BuyerProfile = () => {
   const handleLogout = async () => {
     try {
       await signOut();
+      navigate("/");
     } catch (error) {
       console.error("Logout failed:", error);
     }

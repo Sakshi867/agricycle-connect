@@ -1,3 +1,5 @@
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
 /**
  * AI Service for analyzing agricultural waste images
  */
@@ -16,23 +18,25 @@ export interface AIAnalysisResult {
   error?: string;
 }
 
-const GROK_API_KEY = import.meta.env.VITE_GROK_API_KEY;
-const GROK_API_URL = import.meta.env.VITE_GROK_API_URL || 'https://api.x.ai/v1/chat/completions';
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+const genAI = GEMINI_API_KEY ? new GoogleGenerativeAI(GEMINI_API_KEY) : null;
 
 /**
- * Analyzes an image of agricultural waste using Grok AI
+ * Analyzes an image of agricultural waste using Gemini AI
  */
 export async function analyzeWasteImage(imageBlob: Blob, fileName: string): Promise<AIAnalysisResult> {
   try {
-    if (!GROK_API_KEY) {
-      throw new Error('Grok API Key is not configured');
+    if (!GEMINI_API_KEY || !genAI) {
+      throw new Error('Gemini API Key is not configured');
     }
+
+    // Using gemini-2.0-flash as it is high performing and available in the standard SDK
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
     // Convert Blob to Base64
     const base64Image = await blobToBase64(imageBlob);
-    
-    // Clean up base64 string (remove data:image/jpeg;base64, prefix)
     const base64Data = base64Image.split(',')[1];
+    const mimeType = imageBlob.type || 'image/jpeg';
 
     const prompt = `You are a professional agricultural waste auditor. 
 Analyze the visual characteristics of the provided image (color, fiber length, texture, and density).
@@ -57,46 +61,19 @@ Step 3: Provide the analysis STRICTLY in this JSON format:
   "estimatedWeight": "Quantity estimate if visible"
 }`;
 
-    const response = await fetch(GROK_API_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${GROK_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        messages: [
-          {
-            role: "system",
-            content: "You are a precise agricultural analysis tool that outputs only valid JSON."
-          },
-          {
-            role: "user",
-            content: [
-              { type: "text", text: prompt },
-              { 
-                type: "image_url", 
-                image_url: { 
-                  url: `data:image/jpeg;base64,${base64Data}` 
-                } 
-              }
-            ]
-          }
-        ],
-        model: "grok-vision-beta",
-        temperature: 0.1,
-        max_tokens: 600,
-        response_format: { type: "json_object" }
-      }),
-    });
+    const result = await model.generateContent([
+      prompt,
+      {
+        inlineData: {
+          data: base64Data,
+          mimeType
+        }
+      }
+    ]);
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
-    }
+    const response = await result.response;
+    const content = response.text();
 
-    const data = await response.json();
-    const content = data.choices[0].message.content;
-    
     // Attempt to extract and parse JSON
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (jsonMatch) {

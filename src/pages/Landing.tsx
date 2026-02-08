@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Camera, Sparkles, Building2, ArrowRight, Leaf, Recycle, Users, TrendingUp, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Header from "@/components/Header";
@@ -7,7 +7,18 @@ import FeatureCard from "@/components/FeatureCard";
 import AnimatedCounter from "@/components/AnimatedCounter";
 import heroBg from "@/assets/hero-bg.jpg";
 
+import { useAuth } from "@/context/AuthContext";
+import { useEffect } from "react";
+
 const Landing = () => {
+  const navigate = useNavigate();
+  const { currentUser, role } = useAuth();
+
+  useEffect(() => {
+    if (currentUser && role) {
+      navigate(`/${role}/dashboard`);
+    }
+  }, [currentUser, role, navigate]);
   const howItWorks = [
     {
       icon: Camera,
@@ -47,7 +58,7 @@ const Landing = () => {
       {/* Hero Section */}
       <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
         {/* Background Image */}
-        <div 
+        <div
           className="absolute inset-0 bg-cover bg-center bg-no-repeat"
           style={{ backgroundImage: `url(${heroBg})` }}
         >
@@ -72,7 +83,7 @@ const Landing = () => {
             </h1>
 
             <p className="text-lg md:text-xl text-primary-foreground/80 max-w-2xl mx-auto mb-8">
-              Snap a photo of your farm waste. Our AI finds buyers from sustainable industries. 
+              Snap a photo of your farm waste. Our AI finds buyers from sustainable industries.
               You earn money while reducing pollution.
             </p>
 
@@ -160,7 +171,7 @@ const Landing = () => {
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl mx-auto">
             {impactStats.map((stat) => (
-              <div 
+              <div
                 key={stat.label}
                 className="bg-primary-foreground/10 backdrop-blur-sm rounded-2xl p-6 text-center border border-primary-foreground/10"
               >

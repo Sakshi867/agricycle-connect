@@ -19,6 +19,8 @@ const BuyerListingDetail = () => {
   const [listing, setListing] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [farmerPhone, setFarmerPhone] = useState("");
+  const [contacting, setContacting] = useState(false);
+  const [calling, setCalling] = useState(false);
 
   useEffect(() => {
     const fetchListing = async () => {

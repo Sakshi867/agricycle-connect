@@ -7,7 +7,7 @@ import Logo from "@/components/Logo";
 import FarmerBottomNav from "@/components/FarmerBottomNav";
 import { useListings } from "@/context/ListingsContext";
 import { useAuth } from "@/context/AuthContext";
-import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { collection, query, where, onSnapshot, limit, orderBy } from "firebase/firestore";
 import { db } from "@/services/firebase/config";
 
 const FarmerDashboard = () => {
@@ -22,7 +22,9 @@ const FarmerDashboard = () => {
     const q = query(
       collection(db, 'conversations'),
       where('participants', 'array-contains', currentUser.uid),
-      where('status', '==', 'pending')
+      where('status', '==', 'pending'),
+      orderBy('lastMessageTime', 'desc'),
+      limit(50)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {

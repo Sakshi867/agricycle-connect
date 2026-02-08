@@ -10,16 +10,42 @@ const BuyerListings = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFilter, setSelectedFilter] = useState("all");
   const [showFilters, setShowFilters] = useState(false);
+  const [activeFilters, setActiveFilters] = useState({
+    location: "all",
+    price: "all",
+    quality: "all"
+  });
   const { buyerListings: listings, toggleBookmark } = useListings();
 
   const filters = [
     { id: "all", label: "All Types" },
-    { id: "rice-husk", label: "Rice Husk" },
-    { id: "wheat-straw", label: "Wheat Straw" },
-    { id: "sugarcane", label: "Sugarcane" },
-    { id: "cotton", label: "Cotton" },
-    { id: "other", label: "Other" },
+    { id: "Rice Husk", label: "Rice Husk" },
+    { id: "Wheat Straw", label: "Wheat Straw" },
+    { id: "Sugarcane", label: "Sugarcane" },
+    { id: "Cotton", label: "Cotton" },
   ];
+
+  const filteredListings = listings.filter(listing => {
+    const matchesSearch = listing.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      listing.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      listing.farmerName.toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesType = selectedFilter === "all" || listing.title === selectedFilter;
+
+    const matchesLocation = activeFilters.location === "all" ||
+      listing.location.toLowerCase().includes(activeFilters.location.toLowerCase());
+
+    const matchesQuality = activeFilters.quality === "all" ||
+      listing.quality === activeFilters.quality;
+
+    const priceNum = parseFloat(listing.price);
+    let matchesPrice = true;
+    if (activeFilters.price === "Below ₹3/kg") matchesPrice = priceNum < 3;
+    else if (activeFilters.price === "₹3-5/kg") matchesPrice = priceNum >= 3 && priceNum <= 5;
+    else if (activeFilters.price === "Above ₹5/kg") matchesPrice = priceNum > 5;
+
+    return matchesSearch && matchesType && matchesLocation && matchesQuality && matchesPrice;
+  });
 
   const filterOptions = [
     { id: "location", label: "Location", options: ["Pune", "Mumbai", "Nashik", "Nagpur"] },
@@ -55,8 +81,8 @@ const BuyerListings = () => {
                 key={filter.id}
                 onClick={() => setSelectedFilter(filter.id)}
                 className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${selectedFilter === filter.id
-                    ? "bg-secondary-foreground text-secondary"
-                    : "bg-secondary-foreground/10 text-secondary-foreground hover:bg-secondary-foreground/20"
+                  ? "bg-secondary-foreground text-secondary"
+                  : "bg-secondary-foreground/10 text-secondary-foreground hover:bg-secondary-foreground/20"
                   }`}
               >
                 {filter.label}
@@ -69,7 +95,7 @@ const BuyerListings = () => {
       {/* Results Header */}
       <div className="px-4 py-4 flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          <span className="font-semibold text-foreground">{listings.length}</span> listings found
+          <span className="font-semibold text-foreground">{filteredListings.length}</span> listings found
         </p>
         <Button
           variant="ghost"
@@ -102,10 +128,23 @@ const BuyerListings = () => {
                 <div key={filter.id}>
                   <p className="text-sm font-medium text-foreground mb-2">{filter.label}</p>
                   <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => setActiveFilters({ ...activeFilters, [filter.id]: "all" })}
+                      className={`px-3 py-1.5 text-sm rounded-full transition-colors ${activeFilters[filter.id as keyof typeof activeFilters] === "all"
+                        ? "bg-secondary text-secondary-foreground"
+                        : "bg-muted hover:bg-muted/80"
+                        }`}
+                    >
+                      All
+                    </button>
                     {filter.options.map((option) => (
                       <button
                         key={option}
-                        className="px-3 py-1.5 text-sm bg-muted rounded-full hover:bg-muted/80 transition-colors"
+                        onClick={() => setActiveFilters({ ...activeFilters, [filter.id]: option })}
+                        className={`px-3 py-1.5 text-sm rounded-full transition-colors ${activeFilters[filter.id as keyof typeof activeFilters] === option
+                          ? "bg-secondary text-secondary-foreground"
+                          : "bg-muted hover:bg-muted/80"
+                          }`}
                       >
                         {option}
                       </button>
@@ -116,8 +155,8 @@ const BuyerListings = () => {
             </div>
 
             <div className="flex gap-2 mt-4">
-              <Button variant="secondary" className="flex-1">Apply Filters</Button>
-              <Button variant="outline" className="flex-1">Reset</Button>
+              <Button variant="secondary" className="flex-1" onClick={() => setShowFilters(false)}>Close</Button>
+              <Button variant="outline" className="flex-1" onClick={() => setActiveFilters({ location: "all", price: "all", quality: "all" })}>Reset</Button>
             </div>
           </div>
         </div>
@@ -125,7 +164,7 @@ const BuyerListings = () => {
 
       {/* Listings Grid */}
       <div className="px-4 grid gap-4">
-        {listings.map((listing) => (
+        {filteredListings.map((listing) => (
           <div
             key={listing.id}
             className="bg-card rounded-2xl overflow-hidden shadow-card hover:shadow-elevated transition-all hover:-translate-y-0.5"
@@ -154,8 +193,8 @@ const BuyerListings = () => {
                         toggleBookmark(listing.id);
                       }}
                       className={`p-2 -m-2 transition-colors ${listing.isBookmarked
-                          ? "text-secondary"
-                          : "text-muted-foreground hover:text-secondary"
+                        ? "text-secondary"
+                        : "text-muted-foreground hover:text-secondary"
                         }`}
                     >
                       <Bookmark className={`w-5 h-5 ${listing.isBookmarked ? "fill-current" : ""}`} />
@@ -163,12 +202,12 @@ const BuyerListings = () => {
                   </div>
 
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="text-lg font-bold text-secondary">{listing.price}</span>
+                    <span className="text-lg font-bold text-secondary">₹{listing.price}/{listing.unit}</span>
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${listing.quality === "Excellent"
-                        ? "bg-primary/10 text-primary"
-                        : listing.quality === "Good"
-                          ? "bg-accent/20 text-accent-foreground"
-                          : "bg-muted text-muted-foreground"
+                      ? "bg-primary/10 text-primary"
+                      : listing.quality === "Good"
+                        ? "bg-accent/20 text-accent-foreground"
+                        : "bg-muted text-muted-foreground"
                       }`}>
                       {listing.quality}
                     </span>

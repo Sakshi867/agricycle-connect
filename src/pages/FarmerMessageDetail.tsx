@@ -53,28 +53,29 @@ const FarmerMessageDetail = () => {
     );
 
     const messagesUnsubscribe = onSnapshot(messagesQuery, (snapshot) => {
-      const msgs: Message[] = [];
-      snapshot.docChanges().forEach((change) => {
-        if (change.type === 'added') {
-          const msgData = change.doc.data();
-          msgs.push({
-            id: change.doc.id,
-            senderId: msgData.senderId,
-            receiverId: msgData.receiverId,
-            senderRole: msgData.senderRole,
-            receiverRole: msgData.receiverRole,
-            message: msgData.message,
-            timestamp: msgData.timestamp,
-            read: msgData.read
-          });
-        }
-      });
+      const msgs = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          senderId: data.senderId,
+          receiverId: data.receiverId,
+          senderRole: data.senderRole,
+          receiverRole: data.receiverRole,
+          message: data.message,
+          timestamp: data.timestamp,
+          read: data.read
+        };
+      }) as Message[];
 
-      setMessages(msgs);
+      // Reverse to show oldest first (top) and newest last (bottom)
+      setMessages([...msgs].reverse());
       setLoading(false);
 
       // Mark conversation as read
       messagingService.markConversationAsRead(currentUser.uid, conversationId);
+    }, (error) => {
+      console.error("Error fetching messages:", error);
+      setLoading(false);
     });
 
     // Clean up subscriptions
@@ -164,8 +165,8 @@ const FarmerMessageDetail = () => {
             >
               <div
                 className={`max-w-[80%] rounded-2xl px-4 py-3 ${isOwnMessage
-                    ? 'bg-primary text-primary-foreground rounded-br-md'
-                    : 'bg-muted text-foreground rounded-bl-md'
+                  ? 'bg-primary text-primary-foreground rounded-br-md'
+                  : 'bg-muted text-foreground rounded-bl-md'
                   }`}
               >
                 <p className="text-sm">{message.message}</p>

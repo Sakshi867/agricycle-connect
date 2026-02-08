@@ -20,10 +20,15 @@ const Auth = () => {
 
   // Auto-redirect if already logged in
   useEffect(() => {
+    // If the user is logged in but the role in the URL is different from their current role,
+    // we should NOT auto-redirect to the old dashboard.
+    // However, usually currentUser + currentRole means they are already authenticated.
     if (currentUser && currentRole) {
-      navigate(`/${currentRole}/dashboard`);
+      if (currentRole === role) {
+        navigate(`/${currentRole}/dashboard`);
+      }
     }
-  }, [currentUser, currentRole, navigate]);
+  }, [currentUser, currentRole, navigate, role]);
 
   // Google sign in function
   const handleGoogleSignIn = async () => {

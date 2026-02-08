@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, ReactNode, useEffect } from "react";
-import { collection, addDoc, updateDoc, doc, getDocs, query, where, orderBy, onSnapshot, serverTimestamp, Timestamp } from 'firebase/firestore';
-import { db } from '@/services/firebase/config';
+import { collection, addDoc, updateDoc, doc, getDocs, query, where, orderBy, onSnapshot, serverTimestamp, Timestamp, limit, setDoc } from 'firebase/firestore';
+import { ref, uploadString, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '@/services/firebase/config';
 import { useAuth } from '@/context/AuthContext';
 
 interface Listing {
@@ -51,7 +52,9 @@ export const ListingsProvider = ({ children }: { children: ReactNode }) => {
         // Subscribe to farmer's own listings
         const q = query(
           collection(db, 'listings'),
-          where('farmerId', '==', currentUser.uid)
+          where('farmerId', '==', currentUser.uid),
+          orderBy('createdAt', 'desc'),
+          limit(50)
         );
 
         unsubscribe = onSnapshot(q, { includeMetadataChanges: true },
@@ -81,7 +84,9 @@ export const ListingsProvider = ({ children }: { children: ReactNode }) => {
         // Buyers see all active listings
         const q = query(
           collection(db, 'listings'),
-          where('status', '==', 'active')
+          where('status', '==', 'active'),
+          orderBy('createdAt', 'desc'),
+          limit(50)
         );
 
         unsubscribe = onSnapshot(q, { includeMetadataChanges: true },
@@ -123,7 +128,10 @@ export const ListingsProvider = ({ children }: { children: ReactNode }) => {
       throw new Error('User must be logged in to add a listing');
     }
 
-    const id = `temp-${Date.now()}`;
+    // 1. Generate a new document reference to get the ID beforehand
+    const docRef = doc(collection(db, 'listings'));
+    const id = docRef.id;
+
     const newListing: Listing = {
       ...listing,
       id,
@@ -141,6 +149,17 @@ export const ListingsProvider = ({ children }: { children: ReactNode }) => {
 
     try {
       console.log('Adding new listing to Firestore:', newListing);
+      let finalImageUrl = newListing.image;
+
+      // 1. If image is base64, upload to Firebase Storage
+      if (newListing.image && newListing.image.startsWith('data:image')) {
+        console.log('Uploading image to Firebase Storage...');
+        const storageRef = ref(storage, `listings/${currentUser.uid}/${Date.now()}_listing.jpg`);
+        const uploadResult = await uploadString(storageRef, newListing.image, 'data_url');
+        finalImageUrl = await getDownloadURL(uploadResult.ref);
+        console.log('Image uploaded successfully:', finalImageUrl);
+      }
+
       const { id: _, ...listingData } = newListing;
 
       // Sanitization: Remove any undefined values that Firestore would reject
@@ -148,15 +167,16 @@ export const ListingsProvider = ({ children }: { children: ReactNode }) => {
         Object.entries(listingData).filter(([_, v]) => v !== undefined)
       );
 
-      // Use serverTimestamp for Firestore
-      const docRef = await addDoc(collection(db, 'listings'), {
+      // Use serverTimestamp for Firestore and the storage URL for the image
+      await setDoc(docRef, {
         ...sanitizedData,
+        image: finalImageUrl,
         createdAt: serverTimestamp()
       });
-      console.log('Successfully wrote to Firestore cache with ID:', docRef.id);
+      console.log('Successfully wrote to Firestore with ID:', id);
 
-      // Return immediately, the onSnapshot will handle replacing the temp listing
-      return docRef.id;
+      // Return immediately, the onSnapshot will handle replacing the temp data
+      return id;
     } catch (error) {
       // Rollback on error
       setFarmerListings(prev => prev.filter(l => l.id !== id));
@@ -168,8 +188,19 @@ export const ListingsProvider = ({ children }: { children: ReactNode }) => {
 
   const updateListing = async (id: string, updates: Partial<Listing>) => {
     try {
+      let finalUpdates = { ...updates };
+
+      // If updating image and it's base64, upload to Storage
+      if (updates.image && updates.image.startsWith('data:image')) {
+        console.log('Uploading updated image to Firebase Storage...');
+        const storageRef = ref(storage, `listings/${currentUser?.uid || 'anonymous'}/${Date.now()}_update.jpg`);
+        const uploadResult = await uploadString(storageRef, updates.image, 'data_url');
+        const downloadUrl = await getDownloadURL(uploadResult.ref);
+        finalUpdates.image = downloadUrl;
+      }
+
       const listingRef = doc(db, 'listings', id);
-      await updateDoc(listingRef, updates);
+      await updateDoc(listingRef, finalUpdates);
       // The onSnapshot will automatically update the state
     } catch (error) {
       console.error('Error updating listing:', error);

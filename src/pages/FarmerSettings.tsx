@@ -166,6 +166,7 @@ const FarmerSettings = () => {
   const handleLogout = async () => {
     try {
       await signOut();
+      navigate("/");
     } catch (error) {
       console.error("Logout failed:", error);
     }

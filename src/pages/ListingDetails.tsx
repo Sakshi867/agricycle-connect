@@ -30,10 +30,10 @@ const ListingDetails = () => {
     title: analysis.wasteType,
     quantity: "",
     unit: "kg",
-    price: "5",
+    price: analysis.suggestedPrice?.match(/\d+/)?.[0] || "5",
     description: "",
     availability: "immediate",
-    image: "/placeholder.svg",
+    image: location.state?.image || "/placeholder.svg",
     quality: analysis.quality
   });
 
@@ -105,8 +105,8 @@ const ListingDetails = () => {
         });
       } else {
         // Create mode
-        // Trigger create (non-blocking) - onSnapshot + Persistence handles the rest
-        addListing({
+        // Await listing creation to ensure image is uploaded
+        await addListing({
           title: formData.title,
           quantity: formData.quantity,
           unit: formData.unit,
@@ -115,9 +115,7 @@ const ListingDetails = () => {
           availability: formData.availability,
           quality: formData.quality,
           location: "Pune, Maharashtra",
-          image: location.state?.image || "/placeholder.svg",
-        }).catch(err => {
-          console.error("Delayed persistence error:", err);
+          image: formData.image,
         });
 
         toast({
@@ -126,13 +124,13 @@ const ListingDetails = () => {
         });
       }
 
-      // Navigate immediately to dashboard
+      // Navigate after success
       navigate("/farmer/dashboard");
     } catch (error) {
-      console.error("Immediate error in publishing:", error);
+      console.error("Error in publishing:", error);
       toast({
         title: "Error",
-        description: "Failed to initiate listing creation.",
+        description: "Failed to create listing. Please try again.",
         variant: "destructive",
       });
       setIsPublishing(false);

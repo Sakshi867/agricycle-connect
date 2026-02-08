@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   Building2,
@@ -40,6 +40,8 @@ interface BuyerProfileData {
 
 const ProductionBuyerProfile = () => {
   const { currentUser, signOut } = useAuth();
+  const navigate = useNavigate();
+
   const [profileData, setProfileData] = useState<BuyerProfileData>({
     name: currentUser?.displayName || "Buyer",
     phone: "+91 98765 43210",
@@ -234,6 +236,7 @@ const ProductionBuyerProfile = () => {
   const handleLogout = async () => {
     try {
       await signOut();
+      navigate("/");
     } catch (error) {
       console.error("Logout failed:", error);
     }

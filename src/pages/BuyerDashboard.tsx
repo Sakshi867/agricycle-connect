@@ -17,11 +17,18 @@ const BuyerDashboard = () => {
 
   const filters = [
     { id: "all", label: "All" },
-    { id: "rice-husk", label: "Rice Husk" },
-    { id: "wheat-straw", label: "Wheat Straw" },
-    { id: "sugarcane", label: "Sugarcane" },
-    { id: "cotton", label: "Cotton" },
+    { id: "Rice Husk", label: "Rice Husk" },
+    { id: "Wheat Straw", label: "Wheat Straw" },
+    { id: "Sugarcane", label: "Sugarcane" },
+    { id: "Cotton", label: "Cotton" },
   ];
+
+  const filteredListings = listings.filter(listing => {
+    const matchesSearch = listing.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      listing.location.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesFilter = selectedFilter === "all" || listing.title === selectedFilter;
+    return matchesSearch && matchesFilter;
+  });
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -76,7 +83,7 @@ const BuyerDashboard = () => {
       {/* Results Header */}
       <div className="px-4 py-4 flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          <span className="font-semibold text-foreground">{listings.length}</span> listings found
+          <span className="font-semibold text-foreground">{filteredListings.length}</span> listings found
         </p>
         <Button variant="ghost" size="sm" className="text-muted-foreground">
           <Filter className="w-4 h-4 mr-1" />
@@ -87,7 +94,7 @@ const BuyerDashboard = () => {
 
       {/* Listings Grid */}
       <div className="px-4 grid gap-4">
-        {listings.map((listing) => (
+        {filteredListings.map((listing) => (
           <Link
             key={listing.id}
             to={`/buyer/listing/${listing.id}`}

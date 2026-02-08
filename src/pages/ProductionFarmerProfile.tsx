@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   User,
@@ -40,6 +40,8 @@ interface FarmerProfileData {
 
 const ProductionFarmerProfile = () => {
   const { currentUser, signOut } = useAuth();
+  const navigate = useNavigate();
+
   const [profileData, setProfileData] = useState<FarmerProfileData>({
     name: currentUser?.displayName || "Farmer",
     phone: "+91 98765 43210",
@@ -234,6 +236,7 @@ const ProductionFarmerProfile = () => {
   const handleLogout = async () => {
     try {
       await signOut();
+      navigate("/");
     } catch (error) {
       console.error("Logout failed:", error);
     }

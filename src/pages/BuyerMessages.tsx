@@ -22,24 +22,21 @@ const BuyerMessages = () => {
     const conversationsQuery = messagingService.getConversationsForUser(currentUser.uid);
 
     const unsubscribe = onSnapshot(conversationsQuery, (snapshot) => {
-      const convos: Conversation[] = [];
-      snapshot.docChanges().forEach((change) => {
-        if (change.type === 'added' || change.type === 'modified') {
-          const convoData = change.doc.data() as any;
-          const unreadCount = convoData[`unreadCount_${currentUser.uid}`] || 0;
+      const convos = snapshot.docs.map(doc => {
+        const convoData = doc.data() as any;
+        const unreadCount = convoData[`unreadCount_${currentUser.uid}`] || 0;
 
-          convos.push({
-            id: change.doc.id,
-            participants: convoData.participants || [],
-            participantNames: convoData.participantNames || [],
-            participantRoles: convoData.participantRoles || [],
-            lastMessage: convoData.lastMessage || '',
-            lastMessageTime: convoData.lastMessageTime || null,
-            unreadCount: unreadCount,
-            status: convoData.status || 'accepted'
-          });
-        }
-      });
+        return {
+          id: doc.id,
+          participants: convoData.participants || [],
+          participantNames: convoData.participantNames || [],
+          participantRoles: convoData.participantRoles || [],
+          lastMessage: convoData.lastMessage || '',
+          lastMessageTime: convoData.lastMessageTime || null,
+          unreadCount: unreadCount,
+          status: convoData.status || 'accepted'
+        };
+      }) as Conversation[];
 
       setConversations(convos);
       setLoading(false);

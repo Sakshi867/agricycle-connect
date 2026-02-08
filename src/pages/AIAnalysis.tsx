@@ -130,7 +130,7 @@ const AIAnalysis = () => {
             {isAnalyzing ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span className="text-sm font-medium">Analyzing with Grok AI...</span>
+                <span className="text-sm font-medium">Analyzing with Gemini AI...</span>
               </>
             ) : error ? (
               <>

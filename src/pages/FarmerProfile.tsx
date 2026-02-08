@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, User, MapPin, Phone, Mail, Edit, Settings, Shield, HelpCircle, LogOut, Camera, Upload, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import FarmerBottomNav from "@/components/FarmerBottomNav";
@@ -11,6 +11,8 @@ import { compressImage } from "@/lib/imageUtils";
 
 const FarmerProfile = () => {
   const { currentUser, signOut } = useAuth();
+  const navigate = useNavigate();
+
   const [farmerData, setFarmerData] = useState({
     name: currentUser?.displayName || "Farmer",
     phone: "+91 98765 43210",
@@ -177,6 +179,7 @@ const FarmerProfile = () => {
   const handleLogout = async () => {
     try {
       await signOut();
+      navigate("/");
     } catch (error) {
       console.error("Logout failed:", error);
     }

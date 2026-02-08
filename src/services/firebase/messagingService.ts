@@ -12,9 +12,11 @@ import {
   updateDoc,
   doc,
   serverTimestamp,
-  increment
+  increment,
+  limit
 } from 'firebase/firestore';
-import { db } from './config';
+import { ref, uploadString, getDownloadURL } from 'firebase/storage';
+import { db, storage } from './config';
 
 export interface Message {
   id?: string;
@@ -107,7 +109,8 @@ class MessagingService {
     return query(
       collection(db, 'conversations'),
       where('participants', 'array-contains', userId),
-      orderBy('lastMessageTime', 'desc')
+      orderBy('lastMessageTime', 'desc'),
+      limit(50)
     );
   }
 
@@ -117,7 +120,8 @@ class MessagingService {
     return query(
       collection(db, 'messages'),
       where('conversationId', '==', conversationId),
-      orderBy('timestamp', 'asc')
+      orderBy('timestamp', 'desc'), // Get newest messages first for performance
+      limit(50)
     );
   }
 
@@ -185,17 +189,26 @@ class MessagingService {
     }
   }
 
-  // Upload user profile photo (Now using Firestore base64 to stay on free tier)
+  // Upload user profile photo using Firebase Storage
   async uploadUserPhoto(userId: string, base64Image: string): Promise<string> {
     try {
+      if (!base64Image.startsWith('data:image')) {
+        return base64Image; // Already a URL
+      }
+
+      console.log('Uploading profile photo to Firebase Storage...');
+      const storageRef = ref(storage, `profiles/${userId}/avatar.jpg`);
+      const uploadResult = await uploadString(storageRef, base64Image, 'data_url');
+      const downloadURL = await getDownloadURL(uploadResult.ref);
+
       const userRef = doc(db, 'users', userId);
       await updateDoc(userRef, {
-        photoURL: base64Image,
+        photoURL: downloadURL,
         updatedAt: serverTimestamp()
       });
-      return base64Image;
+      return downloadURL;
     } catch (error) {
-      console.error('Error updating user photo in Firestore:', error);
+      console.error('Error updating user photo in Firebase Storage:', error);
       throw error;
     }
   }
